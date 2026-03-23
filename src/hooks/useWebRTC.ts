@@ -7,6 +7,7 @@ import type { ClientMessage, ServerMessage, SignalPayload } from "~/types/room";
 interface PeerEntry {
   pc: RTCPeerConnection;
   name: string;
+  sysAudioSender: RTCRtpSender | null;
 }
 
 interface UseWebRTCParams {
@@ -123,7 +124,7 @@ export function useWebRTC({
         }
       };
 
-      peersRef.current.set(peerId, { pc, name: peerName });
+      peersRef.current.set(peerId, { pc, name: peerName, sysAudioSender: null });
       setPeerCount(peersRef.current.size);
 
       return pc;
@@ -286,30 +287,28 @@ export function useWebRTC({
 
   // When systemAudioTrack or isMyTurn changes, add/remove system audio
   useEffect(() => {
-    for (const [, { pc }] of peersRef.current) {
-      // Find existing system audio sender (one whose track is not from the mic stream)
-      const existingSender = pc.getSenders().find((s) => {
-        if (s.track?.kind !== "audio") return false;
-        const micTrack = micStreamRef.current?.getAudioTracks()[0];
-        return s.track !== micTrack;
-      });
+    for (const [, entry] of peersRef.current) {
+      const { pc } = entry;
 
       if (isMyTurn && systemAudioTrack) {
-        if (existingSender) {
+        if (entry.sysAudioSender) {
           // Replace existing system audio track
-          void existingSender
+          void entry.sysAudioSender
             .replaceTrack(systemAudioTrack)
             .catch((err: unknown) =>
               console.error("Error replacing system audio track:", err),
             );
         } else {
-          // Add new system audio track
-          pc.addTrack(systemAudioTrack);
+          // Add new system audio track — create a stream wrapper for it
+          const sysStream = new MediaStream([systemAudioTrack]);
+          const sender = pc.addTrack(systemAudioTrack, sysStream);
+          entry.sysAudioSender = sender;
           // onnegotiationneeded will fire automatically
         }
-      } else if (existingSender) {
+      } else if (entry.sysAudioSender) {
         // Remove system audio sender
-        pc.removeTrack(existingSender);
+        pc.removeTrack(entry.sysAudioSender);
+        entry.sysAudioSender = null;
         // onnegotiationneeded will fire automatically
       }
     }
