@@ -2,19 +2,37 @@
 
 import { useState } from "react";
 
+function copyToClipboard(text: string): boolean {
+  // Try modern API first
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(text).catch(() => {});
+    return true;
+  }
+
+  // Fallback: textarea + execCommand
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  document.body.appendChild(textarea);
+  textarea.select();
+  try {
+    document.execCommand("copy");
+    return true;
+  } catch {
+    return false;
+  } finally {
+    document.body.removeChild(textarea);
+  }
+}
+
 export function InviteCode({ code }: { code: string }) {
   const [copied, setCopied] = useState(false);
 
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(
-        `${window.location.origin}/room/${code}`,
-      );
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Fallback: copy just the code
-      await navigator.clipboard.writeText(code);
+  const handleCopy = () => {
+    const url = `${window.location.origin}/room/${code}?name=`;
+    const ok = copyToClipboard(url);
+    if (ok) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
