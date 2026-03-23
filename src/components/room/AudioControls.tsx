@@ -1,24 +1,11 @@
 "use client";
 
 interface AudioControlsProps {
-  isMuted: boolean;
-  toggleMute: () => void;
-  startMic: () => Promise<void>;
-  stopMic: () => void;
-  micStream: MediaStream | null;
-  micError: string | null;
+  isMicEnabled: boolean;
+  toggleMic: () => Promise<void>;
 }
 
-export function AudioControls({
-  isMuted,
-  toggleMute,
-  startMic,
-  stopMic,
-  micStream,
-  micError,
-}: AudioControlsProps) {
-  const hasMic = micStream !== null;
-
+export function AudioControls({ isMicEnabled, toggleMic }: AudioControlsProps) {
   return (
     <div
       className="rounded-2xl border p-5"
@@ -38,74 +25,34 @@ export function AudioControls({
         Microphone
       </h3>
 
-      {micError && (
-        <p
-          className="mb-3 text-sm"
-          style={{ color: "var(--color-neon-pink)" }}
-        >
-          {micError}
-        </p>
-      )}
-
       <div className="flex items-center gap-3">
-        {!hasMic ? (
-          <button
-            onClick={startMic}
-            className="flex cursor-pointer items-center gap-2 rounded-xl px-5 py-3 text-sm font-bold tracking-wide transition-all duration-200 hover:scale-105 active:scale-95"
-            style={{
-              fontFamily: "var(--font-display)",
-              background: "var(--color-neon-cyan)",
-              color: "var(--color-dark-bg)",
-            }}
-          >
-            <MicIcon />
-            Connect Mic
-          </button>
-        ) : (
-          <>
-            <button
-              onClick={toggleMute}
-              className="flex cursor-pointer items-center gap-2 rounded-xl px-5 py-3 text-sm font-bold tracking-wide transition-all duration-200 hover:scale-105 active:scale-95"
-              style={{
-                fontFamily: "var(--font-display)",
-                background: isMuted
-                  ? "rgba(255, 45, 120, 0.15)"
-                  : "rgba(0, 240, 255, 0.15)",
-                color: isMuted
-                  ? "var(--color-neon-pink)"
-                  : "var(--color-neon-cyan)",
-                borderWidth: "1px",
-                borderColor: isMuted
-                  ? "var(--color-neon-pink)"
-                  : "var(--color-neon-cyan)",
-              }}
-            >
-              {isMuted ? <MicOffIcon /> : <MicIcon />}
-              {isMuted ? "Unmute" : "Mute"}
-            </button>
-            <button
-              onClick={stopMic}
-              className="cursor-pointer rounded-xl border px-4 py-3 text-sm transition-all duration-200 hover:scale-105 active:scale-95"
-              style={{
-                borderColor: "var(--color-dark-border)",
-                color: "var(--color-text-secondary)",
-              }}
-            >
-              Disconnect
-            </button>
-          </>
-        )}
+        <button
+          onClick={toggleMic}
+          className="flex cursor-pointer items-center gap-2 rounded-xl px-5 py-3 text-sm font-bold tracking-wide transition-all duration-200 hover:scale-105 active:scale-95"
+          style={{
+            fontFamily: "var(--font-display)",
+            background: isMicEnabled
+              ? "rgba(0, 240, 255, 0.15)"
+              : "var(--color-neon-cyan)",
+            color: isMicEnabled
+              ? "var(--color-neon-cyan)"
+              : "var(--color-dark-bg)",
+            borderWidth: isMicEnabled ? "1px" : "0",
+            borderColor: "var(--color-neon-cyan)",
+          }}
+        >
+          {isMicEnabled ? <MicIcon /> : <MicOffIcon />}
+          {isMicEnabled ? "Mute" : "Unmute"}
+        </button>
       </div>
 
       <p
         className="mt-3 text-xs"
         style={{ color: "var(--color-text-secondary)" }}
       >
-        {hasMic
-          ? isMuted
-            ? "Your mic is muted. Others can't hear you."
-            : "Your mic is on. Others can hear you talking."
-          : "Connect your mic to chat with the room."}
+        {isMicEnabled
+          ? "Your mic is on. Others can hear you talking."
+          : "Your mic is muted. Click to start talking."}
       </p>
     </div>
   );
