@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useRoomState } from "~/hooks/useRoomState";
 import { useLiveKit } from "~/hooks/useLiveKit";
 import { useAudioDevices } from "~/hooks/useAudioDevices";
@@ -8,6 +9,7 @@ import { AudioControls } from "./AudioControls";
 import { ParticipantList } from "./ParticipantList";
 import { NowSinging } from "./NowSinging";
 import { InviteCode } from "./InviteCode";
+import { StatusBar } from "./StatusBar";
 
 interface RoomViewProps {
   roomCode: string;
@@ -36,7 +38,10 @@ export function RoomView({ roomCode, playerName }: RoomViewProps) {
     setMicMode,
   } = useAudioDevices();
 
+  const [sessionStartTime] = useState(() => Date.now());
+
   const {
+    room,
     isConnected: isLiveKitConnected,
     error: liveKitError,
     isMicEnabled,
@@ -47,6 +52,7 @@ export function RoomView({ roomCode, playerName }: RoomViewProps) {
     startSharing,
     stopSharing,
     sharingError,
+    remoteParticipantCount,
   } = useLiveKit({
     roomCode,
     playerName,
@@ -175,6 +181,16 @@ export function RoomView({ roomCode, playerName }: RoomViewProps) {
           />
         </div>
       </div>
+
+      {/* Status bar */}
+      <StatusBar
+        room={room}
+        isConnected={isConnected}
+        isMicEnabled={isMicEnabled}
+        isSharing={isSharing}
+        remoteParticipantCount={remoteParticipantCount}
+        sessionStartTime={sessionStartTime}
+      />
     </main>
   );
 }

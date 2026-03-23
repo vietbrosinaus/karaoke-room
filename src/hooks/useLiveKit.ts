@@ -26,6 +26,7 @@ interface UseLiveKitParams {
 }
 
 interface UseLiveKitReturn {
+  room: Room | null;
   isConnected: boolean;
   error: string | null;
   isMicEnabled: boolean;
@@ -383,6 +384,7 @@ export function useLiveKit({
   }, [isMyTurn, isSharing, stopSharing]);
 
   return {
+    room: roomRef.current,
     isConnected,
     error,
     isMicEnabled,
