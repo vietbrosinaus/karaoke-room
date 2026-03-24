@@ -2,7 +2,29 @@
 
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { Suspense, useState } from "react";
-import { RoomView } from "~/components/room/RoomView";
+import dynamic from "next/dynamic";
+
+// Dynamic import — code-splits LiveKit (~400KB) away from landing page bundle
+const RoomView = dynamic(
+  () => import("~/components/room/RoomView").then((m) => m.RoomView),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-dvh items-center justify-center">
+        <div
+          className="text-lg"
+          style={{
+            fontFamily: "var(--font-display)",
+            color: "var(--color-primary)",
+            animation: "fade-in 0.5s ease-out",
+          }}
+        >
+          Loading room...
+        </div>
+      </div>
+    ),
+  }
+);
 
 function RoomContent() {
   const params = useParams<{ code: string }>();
@@ -22,7 +44,6 @@ function RoomContent() {
 
   const handleRename = (newName: string) => {
     setName(newName);
-    // Update URL without reload
     router.replace(`/room/${code}?name=${encodeURIComponent(newName)}`);
   };
 
@@ -33,7 +54,7 @@ export default function RoomPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-dvh items-center justify-center">
+        <div className="flex h-dvh items-center justify-center">
           <div
             className="text-lg"
             style={{
