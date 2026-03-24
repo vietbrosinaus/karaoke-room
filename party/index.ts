@@ -11,6 +11,9 @@ const MAX_CHAT_LENGTH = 500;
 const MAX_NAME_LENGTH = 30;
 const MAX_BROWSER_LENGTH = 64;
 const ALLOWED_EMOJIS = new Set(["🔥", "👏", "😍", "🎵", "💯", "🙌"]);
+const HEARTBEAT_INTERVAL_MS = 15_000; // ping every 15s
+const HEARTBEAT_TIMEOUT_MS = 40_000;  // evict after 40s of no pong
+const SINGER_TIMEOUT_MS = 60_000;     // auto-advance queue after 60s of inactive singer
 
 export default class KaraokeRoom implements Party.Server {
   participants: Map<string, ParticipantEntry> = new Map();
@@ -19,11 +22,66 @@ export default class KaraokeRoom implements Party.Server {
   chatMessages: ChatMessage[] = [];
   participantStatus: Map<string, ParticipantStatus> = new Map();
 
+  // Heartbeat: track last pong time per connection
+  private lastPong: Map<string, number> = new Map();
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  // Singer timeout: auto-advance if singer goes inactive
+  private singerTimer: ReturnType<typeof setTimeout> | null = null;
+
   constructor(readonly room: Party.Room) {}
 
+  private startHeartbeat() {
+    if (this.heartbeatTimer) return;
+    this.heartbeatTimer = setInterval(() => {
+      const now = Date.now();
+      // Ping all connections
+      for (const [id, entry] of this.participants) {
+        try {
+          entry.ws.send(JSON.stringify({ type: "ping" }));
+        } catch {
+          // Will be cleaned up below
+        }
+      }
+      // Evict connections that haven't ponged in time
+      const deadIds: string[] = [];
+      for (const [id] of this.participants) {
+        const last = this.lastPong.get(id) ?? 0;
+        if (now - last > HEARTBEAT_TIMEOUT_MS) {
+          deadIds.push(id);
+        }
+      }
+      for (const id of deadIds) {
+        console.log(`[KaraokeRoom] Heartbeat timeout for ${id} — evicting`);
+        this.removeParticipant(id);
+      }
+    }, HEARTBEAT_INTERVAL_MS);
+  }
+
+  private stopHeartbeat() {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
+  }
+
+  private resetSingerTimer() {
+    if (this.singerTimer) clearTimeout(this.singerTimer);
+    this.singerTimer = null;
+    if (this.currentSingerId) {
+      this.singerTimer = setTimeout(() => {
+        if (this.currentSingerId && !this.participants.has(this.currentSingerId)) {
+          console.log(`[KaraokeRoom] Singer ${this.currentSingerId} timed out — advancing queue`);
+          this.currentSingerId = null;
+          this.promoteNextSinger();
+          this.broadcastState();
+        }
+      }, SINGER_TIMEOUT_MS);
+    }
+  }
+
   onConnect(conn: Party.Connection) {
-    // Send the new connection its peer ID immediately.
-    // The client must follow up with a "join" message to register a name.
+    this.lastPong.set(conn.id, Date.now());
+    this.startHeartbeat();
     this.send(conn, { type: "you-joined", peerId: conn.id });
   }
 
@@ -37,6 +95,9 @@ export default class KaraokeRoom implements Party.Server {
     }
 
     switch (msg.type) {
+      case "pong":
+        this.lastPong.set(sender.id, Date.now());
+        return; // no further processing needed
       case "join":
         this.handleJoin(sender, msg.name);
         break;
@@ -86,6 +147,7 @@ export default class KaraokeRoom implements Party.Server {
 
     this.participants.delete(peerId);
     this.participantStatus.delete(peerId);
+    this.lastPong.delete(peerId);
 
     // Remove from queue
     this.queue = this.queue.filter((id) => id !== peerId);
@@ -103,6 +165,10 @@ export default class KaraokeRoom implements Party.Server {
       this.currentSingerId = null;
       this.chatMessages = [];
       this.participantStatus.clear();
+      this.lastPong.clear();
+      this.stopHeartbeat();
+      if (this.singerTimer) clearTimeout(this.singerTimer);
+      this.singerTimer = null;
       return; // no one to broadcast to
     }
 
@@ -274,17 +340,21 @@ export default class KaraokeRoom implements Party.Server {
 
   private promoteNextSinger() {
     if (this.currentSingerId !== null) return;
-    if (this.queue.length === 0) return;
+    if (this.queue.length === 0) {
+      this.resetSingerTimer();
+      return;
+    }
 
     // Only promote participants that are still connected
     while (this.queue.length > 0) {
       const nextId = this.queue.shift()!;
       if (this.participants.has(nextId)) {
         this.currentSingerId = nextId;
+        this.resetSingerTimer();
         return;
       }
-      // If the participant disconnected, skip and try the next one
     }
+    this.resetSingerTimer();
   }
 
   private buildRoomState(): RoomState {
@@ -299,7 +369,8 @@ export default class KaraokeRoom implements Party.Server {
 
     return {
       participants,
-      queue: [...this.queue],
+      // Only include queue entries that are still connected
+      queue: this.queue.filter((id) => this.participants.has(id)),
       currentSingerId: this.currentSingerId,
       chatMessages: [...this.chatMessages],
       participantStatus,
@@ -314,21 +385,32 @@ export default class KaraokeRoom implements Party.Server {
     this.broadcast(msg);
   }
 
+  private isBroadcasting = false;
+  private pendingRemovals: string[] = [];
+
   private broadcast(msg: ServerMessage, excludeId?: string) {
     const raw = JSON.stringify(msg);
     const deadIds: string[] = [];
+    this.isBroadcasting = true;
     for (const [id, entry] of this.participants) {
       if (id === excludeId) continue;
       try {
         entry.ws.send(raw);
       } catch {
-        // Connection is dead, mark for cleanup
         deadIds.push(id);
       }
     }
-    // Clean up any dead connections found during broadcast
-    for (const id of deadIds) {
-      this.removeParticipant(id);
+    this.isBroadcasting = false;
+
+    // Clean up dead connections found during broadcast.
+    // Defer if we're inside a re-entrant broadcast to prevent double-cleanup.
+    this.pendingRemovals.push(...deadIds);
+    if (this.pendingRemovals.length > 0) {
+      const toRemove = [...new Set(this.pendingRemovals)];
+      this.pendingRemovals = [];
+      for (const id of toRemove) {
+        this.removeParticipant(id);
+      }
     }
   }
 

@@ -168,11 +168,25 @@ export function useLiveKit({
     room.on(RoomEvent.ParticipantConnected, updateCount);
     room.on(RoomEvent.ParticipantDisconnected, updateCount);
 
-    // Connection state
+    // Connection state — including reconnect awareness
     room.on(RoomEvent.ConnectionStateChanged, (state: ConnectionState) => {
       console.log("[LiveKit] Connection state:", state);
       if (cancelled) return;
       setIsConnected(state === ConnectionState.Connected);
+    });
+
+    room.on(RoomEvent.Reconnecting, () => {
+      console.log("[LiveKit] Reconnecting...");
+      if (!cancelled) setError("Reconnecting...");
+    });
+
+    room.on(RoomEvent.Reconnected, () => {
+      console.log("[LiveKit] Reconnected!");
+      if (!cancelled) {
+        setIsConnected(true);
+        setError(null);
+        updateCount();
+      }
     });
 
     room.on(RoomEvent.Disconnected, () => {
@@ -182,19 +196,9 @@ export function useLiveKit({
       }
     });
 
-    // Connect
-    const connect = async () => {
+    // Connect (with retry on transient errors)
+    const connect = async (attempt = 0) => {
       try {
-        // Stable session ID: survives page refresh so LiveKit replaces the
-        // old participant instead of creating a ghost duplicate.
-        // Scoped by (roomCode, playerName) so changing name gets a fresh identity.
-        const sidKey = `lk-sid-${roomCode}-${playerName}`;
-        let sid = sessionStorage.getItem(sidKey);
-        if (!sid) {
-          sid = `${playerName}-${crypto.randomUUID().slice(0, 8)}`;
-          sessionStorage.setItem(sidKey, sid);
-        }
-
         const res = await fetch(
           `/api/livekit-token?room=${encodeURIComponent(roomCode)}&name=${encodeURIComponent(playerName)}`,
         );
@@ -227,6 +231,12 @@ export function useLiveKit({
         const msg = err instanceof Error ? err.message : "Connection failed";
         console.error("[LiveKit] Error:", err);
         setError(msg);
+        // Retry up to 3 times with exponential backoff
+        if (attempt < 3) {
+          const delay = Math.min(1000 * 2 ** attempt, 8000);
+          console.log(`[LiveKit] Retrying in ${delay}ms (attempt ${attempt + 1}/3)...`);
+          setTimeout(() => { if (!cancelled) void connect(attempt + 1); }, delay);
+        }
       }
     };
 
@@ -279,6 +289,9 @@ export function useLiveKit({
         void bypassAudioCtxRef.current?.close();
       }
       bypassAudioCtxRef.current = null;
+      bypassInFlightRef.current = false;
+      // Remove all remote audio elements to prevent duplicates on reconnect
+      document.querySelectorAll('audio[id^="lk-audio-"]').forEach((el) => el.remove());
       room.disconnect();
       roomRef.current = null;
       setIsConnected(false);
@@ -429,8 +442,6 @@ export function useLiveKit({
     }
 
     let cancelled = false;
-    micCheckAbortRef.current = () => { cancelled = true; };
-
     setMicCheckState("recording");
     console.log("[LiveKit] Mic check: recording 5s...");
 
@@ -469,19 +480,31 @@ export function useLiveKit({
     };
 
     recorder.start();
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       if (recorder.state === "recording") recorder.stop();
     }, 5000);
+
+    // Abort handler: stop recorder + clear timer
+    micCheckAbortRef.current = () => {
+      cancelled = true;
+      clearTimeout(timer);
+      if (recorder.state === "recording") {
+        try { recorder.stop(); } catch { /* already stopped */ }
+      }
+      setMicCheckState("idle");
+    };
   }, [micCheckState]);
 
   // --- Microphone ---
 
+  const isTogglingMicRef = useRef(false);
   const toggleMic = useCallback(async () => {
     const room = roomRef.current;
-    if (!room || !room.localParticipant) return;
+    if (!room || !room.localParticipant || isTogglingMicRef.current) return;
 
+    isTogglingMicRef.current = true;
     try {
-      const newState = !isMicEnabled;
+      const newState = !isMicEnabledRef.current; // use ref for fresh value
       console.log("[LiveKit] Setting mic enabled:", newState);
       await room.localParticipant.setMicrophoneEnabled(newState);
       setIsMicEnabled(newState);
@@ -489,8 +512,10 @@ export function useLiveKit({
     } catch (err) {
       console.error("[LiveKit] Mic error:", err);
       setError(err instanceof Error ? err.message : "Mic failed");
+    } finally {
+      isTogglingMicRef.current = false;
     }
-  }, [isMicEnabled]);
+  }, []);
 
   // --- System audio sharing ---
 
@@ -585,9 +610,16 @@ export function useLiveKit({
 
   // Tear down the Web Audio bypass and restore LiveKit's managed mic
   const unpublishBypassMic = useCallback(async () => {
-    if (bypassInFlightRef.current) return; // another operation in progress
-    // Skip if bypass isn't active
-    if (!bypassPubRef.current && !bypassRawStreamRef.current) return;
+    // Skip if bypass isn't active (but always allow cleanup of raw resources)
+    if (!bypassPubRef.current && !bypassRawStreamRef.current && !bypassAudioCtxRef.current) return;
+    // If another operation is in flight, force-clean resources anyway
+    if (bypassInFlightRef.current) {
+      console.log("[LiveKit] Bypass in flight — force-cleaning resources");
+      cleanupBypassResources();
+      bypassPubRef.current = null;
+      bypassInFlightRef.current = false;
+      return;
+    }
 
     bypassInFlightRef.current = true;
     const room = roomRef.current;

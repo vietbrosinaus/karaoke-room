@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
     // Auto-destroy empty rooms to stop burning LiveKit quota
     at.roomConfig = new RoomConfiguration({
       emptyTimeout: 30,      // destroy room 30s after last participant leaves
-      departureTimeout: 5,   // grace period for reconnections (short = fewer ghosts)
+      departureTimeout: 15,  // grace period for reconnections
       maxParticipants: 10,
     });
 

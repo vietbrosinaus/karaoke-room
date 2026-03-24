@@ -37,7 +37,8 @@ export type ClientMessage =
   | { type: "signal"; to: string; payload: SignalPayload }
   | { type: "chat"; text: string }
   | { type: "status-update"; isMuted: boolean; isSharingAudio: boolean; currentSong: string | null; browser?: string }
-  | { type: "reaction"; emoji: string };
+  | { type: "reaction"; emoji: string }
+  | { type: "pong" };
 
 // Server -> Client
 export type ServerMessage =
@@ -49,7 +50,8 @@ export type ServerMessage =
   | { type: "error"; message: string }
   | { type: "chat"; from: string; fromName: string; text: string; timestamp: number }
   | { type: "participant-status"; peerId: string; status: ParticipantStatus }
-  | { type: "reaction"; from: string; fromName: string; emoji: string };
+  | { type: "reaction"; from: string; fromName: string; emoji: string }
+  | { type: "ping" };
 
 export type SignalPayload =
   | { kind: "offer"; sdp: string }

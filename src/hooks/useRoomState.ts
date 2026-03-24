@@ -63,12 +63,16 @@ export function useRoomState({
   }, [onRawMessage]);
 
   const hasReceivedInitialStateRef = useRef(false);
+  const sendRef = useRef<((msg: ClientMessage) => void) | null>(null);
 
   const onMessage = useCallback((msg: ServerMessage) => {
     console.log("[RoomState] Received message:", msg.type);
     onRawMessageRef.current?.(msg);
 
     switch (msg.type) {
+      case "ping":
+        sendRef.current?.({ type: "pong" });
+        return;
       case "room-state": {
         // Defensive defaults for fields that may be missing from older PartyKit servers
         const state = {
@@ -136,6 +140,7 @@ export function useRoomState({
   }, []);
 
   const { send, isConnected } = usePartySocket({ roomCode, onMessage });
+  sendRef.current = send;
 
   // Send join message once connected
   useEffect(() => {
