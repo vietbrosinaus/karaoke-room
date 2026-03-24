@@ -173,6 +173,9 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
 
   return (
     <main className="relative flex h-dvh flex-col overflow-hidden">
+      {/* Audio unlock prompt — dismisses on first click to satisfy autoplay policy */}
+      <AudioUnlockOverlay />
+
       {/* Ambient background */}
       <div
         className="pointer-events-none fixed inset-0 opacity-[0.04]"
@@ -419,5 +422,29 @@ function EditableName({ name, onRename }: { name: string; onRename?: (n: string)
       className="w-24 rounded-lg border px-2.5 py-1.5 text-xs outline-none"
       style={{ background: "var(--color-dark-card)", borderColor: "var(--color-primary)", color: "var(--color-text-primary)" }}
     />
+  );
+}
+
+function AudioUnlockOverlay() {
+  const [visible, setVisible] = useState(true);
+  if (!visible) return null;
+  return (
+    <div
+      className="fixed inset-0 z-50 flex cursor-pointer items-center justify-center"
+      style={{ background: "rgba(9, 9, 11, 0.85)" }}
+      onClick={() => setVisible(false)}
+    >
+      <div className="text-center" style={{ animation: "fade-in 0.3s ease-out" }}>
+        <p
+          className="text-xl font-bold"
+          style={{ fontFamily: "var(--font-display)", color: "var(--color-text-primary)" }}
+        >
+          Click to enter room
+        </p>
+        <p className="mt-2 text-sm" style={{ color: "var(--color-text-muted)" }}>
+          This enables audio playback
+        </p>
+      </div>
+    </div>
   );
 }
