@@ -137,6 +137,7 @@ export function useLiveKit({
         el.dataset.lkType = isMusic ? "music" : "mic";
         el.style.display = "none";
         el.autoplay = true;
+        el.preload = "none";
         // Route to the selected output device
         if (selectedOutputRef.current && typeof el.setSinkId === "function") {
           void el.setSinkId(selectedOutputRef.current).catch(() => {});
@@ -580,7 +581,7 @@ export function useLiveKit({
       bypassRawStreamRef.current = rawStream;
 
       // 2. Route through AudioContext → bypasses Chrome's system-level processing
-      const ctx = new AudioContext({ sampleRate: 48000 });
+      const ctx = new AudioContext({ sampleRate: 48000, latencyHint: "playback" });
       const source = ctx.createMediaStreamSource(rawStream);
       const dest = ctx.createMediaStreamDestination();
       source.connect(dest);
@@ -719,9 +720,9 @@ export function useLiveKit({
       const pub = await room.localParticipant.publishTrack(audioTrack, {
         source: Track.Source.ScreenShareAudio,
         name: "karaoke-audio",
-        audioPreset: AudioPresets.musicHighQualityStereo,
+        audioPreset: AudioPresets.musicHighQuality, // 128kbps stereo — less CPU than 320kbps
         dtx: false,
-        red: true,
+        red: false, // RED doubles encode load at high bitrate — disable for music
       });
 
       console.log("[LiveKit] System audio published!", pub.trackSid);
