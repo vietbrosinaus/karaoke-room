@@ -160,7 +160,7 @@ export function StageBanner({
             </div>
           ) : (
             <p className="rounded-lg py-2 text-center text-xs" style={{ color: "var(--color-text-muted)", background: "var(--color-dark-card)" }}>
-              Singing requires Chrome or Edge on desktop
+              Singing requires a Chromium browser (Chrome, Edge, Brave, Arc...)
             </p>
           )}
         </div>

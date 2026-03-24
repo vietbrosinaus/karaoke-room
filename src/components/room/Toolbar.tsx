@@ -37,13 +37,13 @@ export function Toolbar({
 
   return (
     <div
-      className="flex flex-wrap items-center gap-2 rounded-xl border px-3 py-2.5"
+      className="flex items-center gap-2 overflow-x-auto rounded-xl border px-3 py-2.5"
       style={{ background: "var(--color-dark-surface)", borderColor: "var(--color-dark-border)" }}
     >
       {/* Mic toggle */}
       <button
         onClick={toggleMic}
-        className="flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition-all duration-150 hover:scale-105 active:scale-95"
+        className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition-all duration-150 hover:scale-105 active:scale-95"
         style={{
           fontFamily: "var(--font-display)",
           background: isMicEnabled ? "var(--color-primary-dim)" : "var(--color-primary)",
@@ -61,7 +61,7 @@ export function Toolbar({
       </button>
 
       {/* Mode toggle */}
-      <div className="flex overflow-hidden rounded-lg border" style={{ borderColor: "var(--color-dark-border)" }}>
+      <div className="flex shrink-0 overflow-hidden rounded-lg border" style={{ borderColor: "var(--color-dark-border)" }}>
         <button
           onClick={() => onMicModeChange("voice")}
           className="cursor-pointer px-2.5 py-1.5 text-[11px] font-medium transition-all"
@@ -108,7 +108,7 @@ export function Toolbar({
         <button
           key={emoji}
           onClick={() => handleReact(emoji)}
-          className="cursor-pointer rounded-md px-1.5 py-1 text-base transition-transform hover:scale-125 active:scale-90"
+          className="shrink-0 cursor-pointer rounded-md px-1.5 py-1 text-base transition-transform hover:scale-125 active:scale-90"
           title={`React with ${emoji}`}
         >
           {emoji}

@@ -264,7 +264,7 @@ export function PeoplePanel({
             </button>
           ) : (
             <p className="text-center text-[11px]" style={{ color: "var(--color-text-muted)" }}>
-              Singing requires Chrome/Edge desktop
+              Singing requires a Chromium desktop browser
             </p>
           )
         ) : isSinging ? (

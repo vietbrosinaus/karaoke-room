@@ -193,7 +193,7 @@ export default function Home() {
         className="mt-8 text-center text-xs"
         style={{ color: "var(--color-text-muted)" }}
       >
-        Best on Chrome / Edge desktop. Singer shares tab audio, everyone hears it.
+        Best on Chromium desktop browsers. Singer shares tab audio, everyone hears it.
       </p>
     </main>
   );

@@ -262,8 +262,8 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
           style={{ background: "var(--color-accent-dim)", color: "var(--color-accent)" }}
         >
           {browser.isMobile
-            ? "Mobile detected — you can listen and chat, but singing requires desktop Chrome/Edge."
-            : `${browser.name} detected — singing works best on Chrome or Edge.`}
+            ? "Mobile detected — you can listen and chat, but singing requires a desktop Chromium browser."
+            : `${browser.name} detected — singing requires a Chromium browser (Chrome, Edge, Brave, Arc...).`}
         </div>
       )}
 
