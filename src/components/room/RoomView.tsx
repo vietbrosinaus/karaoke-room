@@ -6,7 +6,6 @@ import { useRoomState } from "~/hooks/useRoomState";
 import { useLiveKit } from "~/hooks/useLiveKit";
 import { useAudioDevices } from "~/hooks/useAudioDevices";
 import { detectBrowser, type BrowserInfo } from "~/lib/browser";
-import { useAudioLevel } from "~/hooks/useAudioLevel";
 import { StageBanner } from "./StageBanner";
 import { Toolbar } from "./Toolbar";
 import { PeoplePanel } from "./PeoplePanel";
@@ -86,8 +85,6 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
     selectedOutputDeviceId: selectedOutputId,
     micMode,
   });
-
-  const { inboundLevel } = useAudioLevel(room);
 
   const isConnected = isPartyConnected && isLiveKitConnected;
 
@@ -286,7 +283,6 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
                 : null
             }
             canSing={browser.canSing}
-            audioLevel={inboundLevel}
             musicVolume={musicVolume}
             onMusicVolumeChange={(vol: number) => {
               setMusicVolume(vol);

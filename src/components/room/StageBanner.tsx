@@ -16,7 +16,6 @@ interface StageBannerProps {
   audioError: string | null;
   singerSongName: string | null;
   canSing: boolean;
-  audioLevel?: number; // 0-1, inbound audio level for visualizer
   musicVolume?: number;
   onMusicVolumeChange?: (vol: number) => void;
   onMixMicGain?: (val: number) => void;
@@ -34,7 +33,6 @@ export function StageBanner({
   audioError,
   singerSongName,
   canSing,
-  audioLevel = 0,
   musicVolume = 1,
   onMusicVolumeChange,
   onMixMicGain,
@@ -44,8 +42,10 @@ export function StageBanner({
     (p) => p.id === roomState.currentSingerId,
   );
 
+  const isSomeoneSinging = !!roomState.currentSingerId;
+
   // No one singing — compact idle state
-  if (!roomState.currentSingerId) {
+  if (!isSomeoneSinging) {
     return (
       <div
         className="flex items-center gap-3 rounded-xl border px-4 py-3"
@@ -59,22 +59,13 @@ export function StageBanner({
     );
   }
 
-  // Audio-reactive glow intensity (0 to ~20px shadow)
-  const glowIntensity = Math.min(audioLevel * 40, 20);
-  const glowColor = `rgba(139, 92, 246, ${Math.min(audioLevel * 0.8, 0.5)})`;
-
   // Someone else singing — informational banner with volume
   if (!isMyTurn) {
     return (
+      <AudioVisualizer room={room} isActive={isSomeoneSinging}>
       <div
-        className="relative overflow-hidden rounded-xl border px-4 py-3 transition-shadow duration-100"
-        style={{
-          background: "var(--color-dark-surface)",
-          borderColor: "var(--color-primary)",
-          boxShadow: roomState.currentSingerId
-            ? `0 0 ${glowIntensity}px ${glowColor}, inset 0 0 ${glowIntensity * 0.5}px ${glowColor}`
-            : "none",
-        }}
+        className="relative overflow-hidden rounded-xl px-4 py-3"
+        style={{ background: "var(--color-dark-surface)" }}
       >
         <div className="flex items-center gap-3">
           <span className="text-lg">🎤</span>
@@ -105,23 +96,17 @@ export function StageBanner({
           </div>
         )}
 
-        {/* Audio visualizer — frequency bars along the bottom */}
-        <AudioVisualizer room={room} isActive={!!roomState.currentSingerId} />
       </div>
+      </AudioVisualizer>
     );
   }
 
   // My turn — expanded with controls
   return (
+    <AudioVisualizer room={room} isActive={isSharing}>
     <div
-      className="relative overflow-hidden rounded-xl border p-4 transition-shadow duration-100"
-      style={{
-        background: "var(--color-dark-surface)",
-        borderColor: "var(--color-primary)",
-        boxShadow: isSharing
-          ? `0 0 ${glowIntensity}px ${glowColor}, inset 0 0 ${glowIntensity * 0.5}px ${glowColor}`
-          : "none",
-      }}
+      className="relative overflow-hidden rounded-xl p-4"
+      style={{ background: "var(--color-dark-surface)" }}
     >
       <div
         className="absolute left-0 top-0 h-0.5 w-full"
@@ -223,9 +208,8 @@ export function StageBanner({
         </div>
       )}
 
-      {/* Audio visualizer — frequency bars along the bottom */}
-      <AudioVisualizer room={room} isActive={isSharing} />
     </div>
+    </AudioVisualizer>
   );
 }
 
