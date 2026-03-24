@@ -127,12 +127,12 @@ export function RoomView({ roomCode, playerName }: RoomViewProps) {
 
   return (
     <main className="relative flex min-h-dvh flex-col overflow-hidden">
-      {/* Background */}
+      {/* Subtle ambient background */}
       <div
-        className="pointer-events-none fixed inset-0 opacity-10"
+        className="pointer-events-none fixed inset-0 opacity-[0.04]"
         style={{
           background:
-            "radial-gradient(ellipse at 20% 50%, var(--color-neon-pink), transparent 50%), radial-gradient(ellipse at 80% 50%, var(--color-neon-cyan), transparent 50%)",
+            "radial-gradient(ellipse at 20% 50%, var(--color-primary), transparent 50%), radial-gradient(ellipse at 80% 50%, var(--color-accent), transparent 50%)",
         }}
       />
 
@@ -143,11 +143,10 @@ export function RoomView({ roomCode, playerName }: RoomViewProps) {
       >
         <div className="flex items-center gap-4">
           <h1
-            className="text-2xl font-bold"
+            className="text-2xl font-extrabold"
             style={{
               fontFamily: "var(--font-display)",
-              background:
-                "linear-gradient(135deg, var(--color-neon-pink), var(--color-neon-cyan))",
+              background: "linear-gradient(135deg, var(--color-primary), var(--color-accent))",
               WebkitBackgroundClip: "text",
               WebkitTextFillColor: "transparent",
             }}
@@ -166,11 +165,8 @@ export function RoomView({ roomCode, playerName }: RoomViewProps) {
               className="h-2 w-2 rounded-full"
               style={{
                 background: isConnected
-                  ? "var(--color-neon-cyan)"
-                  : "var(--color-neon-pink)",
-                boxShadow: isConnected
-                  ? "0 0 8px var(--color-neon-cyan)"
-                  : "0 0 8px var(--color-neon-pink)",
+                  ? "var(--color-success)"
+                  : "var(--color-accent)",
               }}
             />
             {isConnected
@@ -198,9 +194,9 @@ export function RoomView({ roomCode, playerName }: RoomViewProps) {
         <div
           className="relative z-10 mx-6 mt-4 rounded-lg px-4 py-2 text-sm"
           style={{
-            background: "rgba(255, 45, 120, 0.1)",
-            color: "var(--color-neon-pink)",
-            border: "1px solid rgba(255, 45, 120, 0.3)",
+            background: "var(--color-danger-dim)",
+            color: "var(--color-danger)",
+            border: "1px solid rgba(239, 68, 68, 0.25)",
           }}
         >
           {liveKitError}
@@ -212,9 +208,9 @@ export function RoomView({ roomCode, playerName }: RoomViewProps) {
         <div
           className="relative z-10 mx-6 mt-4 rounded-lg px-4 py-2.5 text-sm"
           style={{
-            background: "rgba(255, 225, 86, 0.1)",
-            color: "var(--color-neon-yellow)",
-            border: "1px solid rgba(255, 225, 86, 0.25)",
+            background: "var(--color-accent-dim)",
+            color: "var(--color-accent)",
+            border: "1px solid rgba(245, 158, 11, 0.25)",
           }}
         >
           {browser.isMobile

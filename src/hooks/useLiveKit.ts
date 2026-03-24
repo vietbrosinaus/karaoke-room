@@ -687,20 +687,14 @@ export function useLiveKit({
       // Detect song name from tab title in track label
       const trackLabel = audioTrack.label;
       console.log("[LiveKit] System audio track label:", trackLabel);
+      const GENERIC_LABELS = new Set(["tab audio", "screen audio", "system audio", "audio", ""]);
       let detectedSong: string | null = null;
-      if (trackLabel) {
+      if (trackLabel && !GENERIC_LABELS.has(trackLabel.toLowerCase())) {
         let songName = trackLabel;
-        // Strip "Tab: " prefix if present
-        if (songName.startsWith("Tab: ")) {
-          songName = songName.slice(5);
-        }
-        // Strip " - YouTube" suffix if present
-        if (songName.endsWith(" - YouTube")) {
-          songName = songName.slice(0, -10);
-        }
-        if (songName.trim()) {
-          detectedSong = songName.trim();
-        }
+        if (songName.startsWith("Tab: ")) songName = songName.slice(5);
+        if (songName.endsWith(" - YouTube")) songName = songName.slice(0, -10);
+        if (songName.endsWith(" - Spotify")) songName = songName.slice(0, -10);
+        if (songName.trim()) detectedSong = songName.trim();
       }
       setCurrentSong(detectedSong);
 
