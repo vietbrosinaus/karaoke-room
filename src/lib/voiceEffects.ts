@@ -49,6 +49,7 @@ function createNone(ctx: AudioContext): EffectChain {
  * Hall reverb — classic karaoke "singing in a concert hall" feel.
  */
 function createHall(ctx: AudioContext): EffectChain {
+  const input = ctx.createGain();
   const dry = ctx.createGain();
   const wet = ctx.createGain();
   const merger = ctx.createGain();
@@ -56,19 +57,45 @@ function createHall(ctx: AudioContext): EffectChain {
   dry.gain.value = 0.5;
   wet.gain.value = 0.5;
 
-  const convolver = ctx.createConvolver();
-  convolver.buffer = createImpulseResponse(ctx, 3.0, 1.5); // 3s decay, slower falloff = bigger hall
+  // Feedback delay network — 4 delay lines with diffusion filters.
+  // Dry signal passes through instantly (0ms latency).
+  // Wet signal builds up naturally like a real room.
+  const delays = [0.029, 0.037, 0.041, 0.053]; // prime-ish intervals for density
+  const feedbackGain = 0.7; // controls decay time
 
-  // Input → dry → merger
-  // Input → convolver → wet → merger
-  dry.connect(merger);
-  convolver.connect(wet);
-  wet.connect(merger);
+  const delayNodes: DelayNode[] = [];
+  const fbNodes: GainNode[] = [];
+  const filterNodes: BiquadFilterNode[] = [];
+  const wetMixer = ctx.createGain();
+  wetMixer.gain.value = 0.3;
 
-  // The input node splits to both dry and convolver
-  const input = ctx.createGain();
+  for (const dt of delays) {
+    const d = ctx.createDelay(0.1);
+    d.delayTime.value = dt;
+    const fb = ctx.createGain();
+    fb.gain.value = feedbackGain;
+    const lp = ctx.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.value = 4000; // darken reflections like a real hall
+
+    // input → delay → filter → feedback → delay (loop)
+    //                       → wetMixer
+    input.connect(d);
+    d.connect(lp);
+    lp.connect(fb);
+    fb.connect(d); // feedback loop
+    lp.connect(wetMixer);
+
+    delayNodes.push(d);
+    fbNodes.push(fb);
+    filterNodes.push(lp);
+  }
+
+  // Dry path: instant passthrough
   input.connect(dry);
-  input.connect(convolver);
+  dry.connect(merger);
+  wetMixer.connect(wet);
+  wet.connect(merger);
 
   return {
     input,
@@ -77,8 +104,11 @@ function createHall(ctx: AudioContext): EffectChain {
       input.disconnect();
       dry.disconnect();
       wet.disconnect();
-      convolver.disconnect();
+      wetMixer.disconnect();
       merger.disconnect();
+      delayNodes.forEach((d) => d.disconnect());
+      fbNodes.forEach((f) => f.disconnect());
+      filterNodes.forEach((f) => f.disconnect());
     },
     setWetDry: (w) => {
       wet.gain.value = w;
