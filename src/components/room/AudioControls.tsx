@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import type { AudioDevice, MicMode } from "~/hooks/useAudioDevices";
-
-type MicCheckState = "idle" | "recording" | "playing";
+import type { MicCheckState } from "~/hooks/useLiveKit";
 
 interface AudioControlsProps {
   isMicEnabled: boolean;

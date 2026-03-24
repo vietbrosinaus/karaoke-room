@@ -25,7 +25,7 @@ interface UseLiveKitParams {
   micMode: MicMode;
 }
 
-type MicCheckState = "idle" | "recording" | "playing";
+export type MicCheckState = "idle" | "recording" | "playing";
 
 interface UseLiveKitReturn {
   room: Room | null;
@@ -257,6 +257,9 @@ export function useLiveKit({
       document.removeEventListener("click", resumeAudio);
       document.removeEventListener("keydown", resumeAudio);
       document.removeEventListener("touchstart", resumeAudio);
+      // Abort any in-progress mic check
+      micCheckAbortRef.current?.();
+      micCheckAbortRef.current = null;
       if (systemAudioTrackRef.current) {
         systemAudioTrackRef.current.stop();
         systemAudioTrackRef.current = null;
@@ -445,6 +448,10 @@ export function useLiveKit({
       const blob = new Blob(chunks, { type: recorder.mimeType });
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
+      // Play through the selected output device
+      if (selectedOutputRef.current && typeof audio.setSinkId === "function") {
+        void (audio as HTMLAudioElement).setSinkId(selectedOutputRef.current).catch(() => {});
+      }
 
       setMicCheckState("playing");
       console.log("[LiveKit] Mic check: playing back...");
