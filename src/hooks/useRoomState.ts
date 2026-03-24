@@ -142,11 +142,15 @@ export function useRoomState({
   const { send, isConnected } = usePartySocket({ roomCode, onMessage });
   sendRef.current = send;
 
-  // Send join message once connected
+  // Send join message on connect and on name change
+  const prevNameRef = useRef(playerName);
   useEffect(() => {
-    if (isConnected && !hasSentJoinRef.current) {
+    if (!isConnected) return;
+    // Send join on first connect or when name changes
+    if (!hasSentJoinRef.current || prevNameRef.current !== playerName) {
       send({ type: "join", name: playerName });
       hasSentJoinRef.current = true;
+      prevNameRef.current = playerName;
     }
   }, [isConnected, playerName, send]);
 
