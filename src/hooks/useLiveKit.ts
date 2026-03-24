@@ -62,7 +62,7 @@ export function useLiveKit({
   const roomRef = useRef<Room | null>(null);
   const systemAudioTrackRef = useRef<MediaStreamTrack | null>(null);
   const systemAudioPubRef = useRef<LocalTrackPublication | null>(null);
-  const monitorAudioRef = useRef<HTMLAudioElement | null>(null);
+  const monitorCtxRef = useRef<AudioContext | null>(null);
   const micModeRef = useRef<MicMode>(micMode);
   micModeRef.current = micMode;
 
@@ -351,22 +351,19 @@ export function useLiveKit({
     setIsMonitoring((prev) => !prev);
   }, []);
 
-  // Effect: attach/detach local mic to a hidden <audio> for monitoring.
-  // Also depends on isSharing — when bypass activates, the mic track changes.
+  // Effect: monitor mic via Web Audio API (low-latency, no stuttering).
+  // Uses AudioContext's dedicated audio thread instead of <audio> element.
   useEffect(() => {
     const room = roomRef.current;
     if (!isMonitoring || !isMicEnabled || !room) {
-      if (monitorAudioRef.current) {
-        monitorAudioRef.current.srcObject = null;
-        monitorAudioRef.current.remove();
-        monitorAudioRef.current = null;
-        console.log("[LiveKit] Mic monitor OFF");
+      if (monitorCtxRef.current?.state !== "closed") {
+        void monitorCtxRef.current?.close();
       }
+      monitorCtxRef.current = null;
       return;
     }
 
     // When bypass is active, monitor the raw bypass stream directly
-    // (the managed mic track is dead during bypass)
     let mediaTrack: MediaStreamTrack | undefined;
     if (bypassRawStreamRef.current) {
       mediaTrack = bypassRawStreamRef.current.getAudioTracks()[0];
@@ -380,29 +377,25 @@ export function useLiveKit({
       return;
     }
 
-    // Create a hidden audio element playing the local mic
-    const audio = document.createElement("audio");
-    audio.id = "lk-mic-monitor";
-    audio.style.display = "none";
-    audio.srcObject = new MediaStream([mediaTrack]);
-    audio.volume = 1.0;
-    document.body.appendChild(audio);
-    void audio.play().catch((err) => console.warn("[LiveKit] Monitor autoplay blocked:", err));
-    monitorAudioRef.current = audio;
-    console.log("[LiveKit] Mic monitor ON");
-
-    // Re-play if Chrome suspends the audio element
-    const keepAlive = setInterval(() => {
-      if (audio.paused) {
-        audio.play().catch(() => {});
-      }
-    }, 5000);
+    // Web Audio pipeline: MediaStream → source → gain → destination (speakers)
+    // Runs on a dedicated high-priority audio thread — no jitter/stuttering.
+    const ctx = new AudioContext();
+    const source = ctx.createMediaStreamSource(new MediaStream([mediaTrack]));
+    const gain = ctx.createGain();
+    gain.gain.value = 1.0;
+    source.connect(gain);
+    gain.connect(ctx.destination);
+    monitorCtxRef.current = ctx;
+    console.log("[LiveKit] Mic monitor ON (Web Audio)");
 
     return () => {
-      clearInterval(keepAlive);
-      audio.srcObject = null;
-      audio.remove();
-      monitorAudioRef.current = null;
+      source.disconnect();
+      gain.disconnect();
+      if (ctx.state !== "closed") {
+        void ctx.close();
+      }
+      monitorCtxRef.current = null;
+      console.log("[LiveKit] Mic monitor OFF");
     };
   }, [isMonitoring, isMicEnabled, isSharing]);
 
