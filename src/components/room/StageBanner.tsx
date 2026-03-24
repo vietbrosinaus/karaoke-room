@@ -277,8 +277,14 @@ function MixBalance({ onMicGain, onMusicGain }: { onMicGain: (v: number) => void
   const [balance, setBalance] = useState(50);
 
   const handleChange = (raw: number) => {
-    // Snap to center (50) when within 1 unit — subtle magnetic feel
-    const val = Math.abs(raw - 50) <= 1 ? 50 : raw;
+    // Smooth magnetic snap: within 3 units, ease toward center
+    let val = raw;
+    const dist = Math.abs(raw - 50);
+    if (dist <= 3) {
+      // Lerp toward 50 — the closer, the stronger the pull
+      const strength = 1 - dist / 3;
+      val = Math.round(raw + (50 - raw) * strength);
+    }
     setBalance(val);
     onMusicGain(val / 50);
     onMicGain((100 - val) / 50);
