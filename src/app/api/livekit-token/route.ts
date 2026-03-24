@@ -23,8 +23,12 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    // Identity must be unique — append random suffix to prevent collisions
+    // when multiple users choose the same display name.
+    const uniqueId = `${name}-${crypto.randomUUID().slice(0, 8)}`;
+
     const at = new AccessToken(apiKey, apiSecret, {
-      identity: name,
+      identity: uniqueId,
       name: name,
     });
 
