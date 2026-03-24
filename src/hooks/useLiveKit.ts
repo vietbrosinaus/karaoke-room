@@ -68,9 +68,11 @@ export function useLiveKit({
   const micModeRef = useRef<MicMode>(micMode);
   micModeRef.current = micMode;
 
-  // Ref mirrors of state — used in callbacks to avoid stale closures
+  // Ref mirrors — used in callbacks to avoid stale closures
   const isMicEnabledRef = useRef(isMicEnabled);
   isMicEnabledRef.current = isMicEnabled;
+  const selectedOutputRef = useRef(selectedOutputDeviceId);
+  selectedOutputRef.current = selectedOutputDeviceId;
 
   // Web Audio bypass: when sharing tab audio, Chrome's system-level echo
   // cancellation nerfs the mic even with echoCancellation:false. Routing
@@ -131,6 +133,10 @@ export function useLiveKit({
         el.dataset.lkType = isMusic ? "music" : "mic";
         el.style.display = "none";
         el.autoplay = true;
+        // Route to the selected output device
+        if (selectedOutputRef.current && typeof el.setSinkId === "function") {
+          void el.setSinkId(selectedOutputRef.current).catch(() => {});
+        }
         document.body.appendChild(el);
         // Force play — may fail due to autoplay policy, but startAudio handles that
         el.play().catch(() => {
@@ -288,9 +294,47 @@ export function useLiveKit({
     if (!room || !isConnected || !selectedInputDeviceId) return;
 
     console.log("[LiveKit] Switching mic input to device:", selectedInputDeviceId);
-    void room.switchActiveDevice("audioinput", selectedInputDeviceId).catch((err) => {
-      console.error("[LiveKit] Error switching input device:", err);
-    });
+
+    // If bypass is active, we need to re-capture the mic from the new device
+    if (bypassPubRef.current && bypassRawStreamRef.current) {
+      void (async () => {
+        try {
+          // Get new mic stream from the selected device
+          const newStream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              deviceId: { exact: selectedInputDeviceId },
+              echoCancellation: false,
+              noiseSuppression: false,
+              autoGainControl: false,
+              channelCount: 2,
+              sampleRate: 48000,
+            },
+          });
+
+          // Stop old stream
+          bypassRawStreamRef.current?.getTracks().forEach((t) => t.stop());
+          bypassRawStreamRef.current = newStream;
+
+          // Reconnect Web Audio graph with new source
+          bypassSourceRef.current?.disconnect();
+          const ctx = bypassAudioCtxRef.current;
+          const dest = bypassDestRef.current;
+          if (ctx && dest) {
+            const newSource = ctx.createMediaStreamSource(newStream);
+            newSource.connect(dest);
+            bypassSourceRef.current = newSource;
+            console.log("[LiveKit] Bypass mic switched to new input device");
+          }
+        } catch (err) {
+          console.error("[LiveKit] Error switching bypass input device:", err);
+        }
+      })();
+    } else {
+      // Normal path: let LiveKit handle it
+      void room.switchActiveDevice("audioinput", selectedInputDeviceId).catch((err) => {
+        console.error("[LiveKit] Error switching input device:", err);
+      });
+    }
   }, [selectedInputDeviceId, isConnected]);
 
   // --- Switch mic mode without reconnecting ---
@@ -344,6 +388,15 @@ export function useLiveKit({
     console.log("[LiveKit] Switching audio output to device:", selectedOutputDeviceId);
     void room.switchActiveDevice("audiooutput", selectedOutputDeviceId).catch((err) => {
       console.error("[LiveKit] Error switching output device:", err);
+    });
+
+    // Also update our manually created <audio> elements (remote tracks)
+    document.querySelectorAll<HTMLAudioElement>('audio[id^="lk-audio-"]').forEach((el) => {
+      if (typeof el.setSinkId === "function") {
+        void el.setSinkId(selectedOutputDeviceId).catch((err) => {
+          console.error("[LiveKit] Error setting sink on audio element:", err);
+        });
+      }
     });
   }, [selectedOutputDeviceId, isConnected]);
 
