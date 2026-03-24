@@ -1,29 +1,55 @@
-# Create T3 App
+# KaraOK — Sing Together Online
 
-This is a [T3 Stack](https://create.t3.gg/) project bootstrapped with `create-t3-app`.
+Real-time online karaoke rooms. Join with a code, share your audio, and sing with friends.
 
-## What's next? How do I make an app with this?
+## Stack
 
-We try to keep this project as simple as possible, so you can start with just the scaffolding we set up for you, and add additional things later when they become necessary.
+- **Frontend**: Next.js 15, React, Tailwind CSS, TypeScript
+- **Audio**: LiveKit SFU (WebRTC), Web Audio API
+- **Signaling**: PartyKit (Cloudflare Durable Objects)
+- **Deploy**: Vercel + PartyKit Cloud
 
-If you are not familiar with the different technologies used in this project, please refer to the respective docs. If you still are in the wind, please join our [Discord](https://t3.gg/discord) and ask for help.
+## Features
 
-- [Next.js](https://nextjs.org)
-- [NextAuth.js](https://next-auth.js.org)
-- [Prisma](https://prisma.io)
-- [Drizzle](https://orm.drizzle.team)
-- [Tailwind CSS](https://tailwindcss.com)
-- [tRPC](https://trpc.io)
+- Create/join rooms with a 6-character code
+- Queue system — take turns singing
+- Share tab audio (karaoke music from YouTube, Spotify, etc.)
+- Single-track mixing — voice + music combined with zero latency
+- Voice effects: Hall reverb, Echo, Warm, Bright, Chorus (pure Web Audio API)
+- Per-person volume control
+- Audio-reactive ambient glow
+- Real-time chat + emoji reactions with sound effects
+- Browser detection (Chromium required for singing)
+- Heartbeat-based connection management
 
-## Learn More
+## Getting Started
 
-To learn more about the [T3 Stack](https://create.t3.gg/), take a look at the following resources:
+```bash
+npm install
+cp .env.example .env  # add your LiveKit + PartyKit credentials
+npm run dev
+```
 
-- [Documentation](https://create.t3.gg/)
-- [Learn the T3 Stack](https://create.t3.gg/en/faq#what-learning-resources-are-currently-available) — Check out these awesome tutorials
+## Environment Variables
 
-You can check out the [create-t3-app GitHub repository](https://github.com/t3-oss/create-t3-app) — your feedback and contributions are welcome!
+```
+LIVEKIT_API_KEY=
+LIVEKIT_API_SECRET=
+LIVEKIT_URL=wss://your-project.livekit.cloud
+NEXT_PUBLIC_LIVEKIT_URL=wss://your-project.livekit.cloud
+NEXT_PUBLIC_PARTY_HOST=your-project.partykit.dev
+```
 
-## How do I deploy this?
+## Architecture
 
-Follow our deployment guides for [Vercel](https://create.t3.gg/en/deployment/vercel), [Netlify](https://create.t3.gg/en/deployment/netlify) and [Docker](https://create.t3.gg/en/deployment/docker) for more information.
+```
+Browser A (Singer)                    Browser B (Listener)
+  |-- getUserMedia (mic)                |-- Receives single mixed track
+  |-- getDisplayMedia (tab audio)       |-- AudioVisualizer (glow effect)
+  |-- Web Audio mixing:                 |-- Per-person volume control
+  |    mic -> effects -> gain --+       +-- Chat + reactions
+  |    tab audio -> gain -------+
+  |                             +-> single track -> LiveKit SFU
+  |-- PartyKit (room state, chat, queue)
+  +-- Voice effects (reverb, echo, EQ, chorus)
+```
