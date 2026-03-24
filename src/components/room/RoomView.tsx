@@ -310,7 +310,10 @@ function EditableName({ name, onRename }: { name: string; onRename?: (n: string)
 
   if (!onRename) {
     return (
-      <span className="text-xs" style={{ color: "var(--color-text-secondary)" }}>
+      <span
+        className="rounded-lg border px-3 py-1.5 text-xs font-medium"
+        style={{ borderColor: "var(--color-dark-border)", color: "var(--color-text-primary)" }}
+      >
         {name}
       </span>
     );
@@ -320,11 +323,14 @@ function EditableName({ name, onRename }: { name: string; onRename?: (n: string)
     return (
       <button
         onClick={() => { setDraft(name); setEditing(true); }}
-        className="cursor-pointer rounded-md px-2 py-1 text-xs transition-colors hover:bg-[var(--color-dark-card)]"
-        style={{ color: "var(--color-text-primary)" }}
+        className="flex cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all duration-200 hover:border-[var(--color-primary)] hover:scale-105 active:scale-95"
+        style={{ borderColor: "var(--color-dark-border)", color: "var(--color-text-primary)" }}
         title="Click to change your name"
       >
         {name}
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+        </svg>
       </button>
     );
   }
@@ -347,7 +353,7 @@ function EditableName({ name, onRename }: { name: string; onRename?: (n: string)
         if (e.key === "Enter") submit();
         if (e.key === "Escape") setEditing(false);
       }}
-      className="w-24 rounded-md border px-2 py-1 text-xs outline-none"
+      className="w-28 rounded-lg border px-3 py-1.5 text-xs font-medium outline-none"
       style={{
         background: "var(--color-dark-card)",
         borderColor: "var(--color-primary)",
