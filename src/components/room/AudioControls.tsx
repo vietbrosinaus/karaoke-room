@@ -52,7 +52,7 @@ export function AudioControls({
           className="text-sm uppercase tracking-widest"
           style={{
             fontFamily: "var(--font-display)",
-            color: "var(--color-neon-cyan)",
+            color: "var(--color-primary)",
             fontSize: "0.75rem",
           }}
         >
@@ -60,57 +60,50 @@ export function AudioControls({
         </h3>
         <button
           onClick={() => setShowSettings(!showSettings)}
-          className="cursor-pointer rounded-lg px-3 py-1 text-xs transition-all duration-200 hover:scale-105"
+          className="cursor-pointer rounded-lg border px-4 py-1.5 text-xs font-medium transition-all duration-200 hover:scale-105 active:scale-95"
           style={{
-            color: "var(--color-text-secondary)",
-            background: showSettings
-              ? "rgba(0, 240, 255, 0.1)"
-              : "var(--color-dark-card)",
+            fontFamily: "var(--font-display)",
+            borderColor: showSettings ? "var(--color-primary)" : "var(--color-dark-border)",
+            color: showSettings ? "var(--color-primary)" : "var(--color-text-secondary)",
+            background: showSettings ? "var(--color-primary-dim)" : "var(--color-dark-card)",
           }}
         >
-          {showSettings ? "Hide" : "Settings"}
+          {showSettings ? "Close Settings" : "Settings"}
         </button>
       </div>
 
-      {/* Mic toggle + mode */}
-      <div className="flex items-center gap-3">
+      {/* Mic controls — always visible */}
+      <div className="flex flex-wrap items-center gap-3">
         <button
           onClick={toggleMic}
           className="flex cursor-pointer items-center gap-2 rounded-xl px-5 py-3 text-sm font-bold tracking-wide transition-all duration-200 hover:scale-105 active:scale-95"
           style={{
             fontFamily: "var(--font-display)",
             background: isMicEnabled
-              ? "rgba(0, 240, 255, 0.15)"
-              : "var(--color-neon-cyan)",
+              ? "var(--color-primary-dim)"
+              : "var(--color-primary)",
             color: isMicEnabled
-              ? "var(--color-neon-cyan)"
-              : "var(--color-dark-bg)",
+              ? "var(--color-primary)"
+              : "#fff",
             borderWidth: isMicEnabled ? "1px" : "0",
-            borderColor: "var(--color-neon-cyan)",
+            borderColor: "var(--color-primary)",
           }}
         >
           {isMicEnabled ? <MicIcon /> : <MicOffIcon />}
           {isMicEnabled ? "Mute" : "Unmute"}
         </button>
 
-        {/* Mic mode toggle — Talking vs Singing */}
+        {/* Mic mode toggle */}
         <div
           className="flex overflow-hidden rounded-lg border"
           style={{ borderColor: "var(--color-dark-border)" }}
-          title="Talking: echo cancellation + noise reduction on. Singing: all processing off for better audio quality."
         >
           <button
             onClick={() => onMicModeChange("voice")}
             className="cursor-pointer px-3 py-2 text-xs font-medium transition-all duration-200"
             style={{
-              background:
-                micMode === "voice"
-                  ? "rgba(0, 240, 255, 0.15)"
-                  : "var(--color-dark-card)",
-              color:
-                micMode === "voice"
-                  ? "var(--color-neon-cyan)"
-                  : "var(--color-text-secondary)",
+              background: micMode === "voice" ? "var(--color-primary-dim)" : "var(--color-dark-card)",
+              color: micMode === "voice" ? "var(--color-primary)" : "var(--color-text-secondary)",
             }}
           >
             💬 Talking
@@ -119,221 +112,86 @@ export function AudioControls({
             onClick={() => onMicModeChange("raw")}
             className="cursor-pointer px-3 py-2 text-xs font-medium transition-all duration-200"
             style={{
-              background:
-                micMode === "raw"
-                  ? "rgba(255, 45, 120, 0.15)"
-                  : "var(--color-dark-card)",
-              color:
-                micMode === "raw"
-                  ? "var(--color-neon-pink)"
-                  : "var(--color-text-secondary)",
+              background: micMode === "raw" ? "var(--color-accent-dim)" : "var(--color-dark-card)",
+              color: micMode === "raw" ? "var(--color-accent)" : "var(--color-text-secondary)",
             }}
           >
             🎤 Singing
           </button>
         </div>
 
-        {/* Mic check — record & playback */}
+        {/* Mic check */}
         {isMicEnabled && (
           <button
             onClick={onMicCheck}
             disabled={micCheckState !== "idle"}
             className="cursor-pointer rounded-lg border px-3 py-2 text-xs font-medium transition-all duration-200 hover:scale-105 disabled:cursor-not-allowed disabled:opacity-60"
             style={{
-              borderColor: micCheckState !== "idle"
-                ? "var(--color-neon-yellow)"
-                : "var(--color-dark-border)",
-              background: micCheckState !== "idle"
-                ? "rgba(255, 225, 86, 0.15)"
-                : "var(--color-dark-card)",
-              color: micCheckState !== "idle"
-                ? "var(--color-neon-yellow)"
-                : "var(--color-text-secondary)",
+              borderColor: micCheckState !== "idle" ? "var(--color-accent)" : "var(--color-dark-border)",
+              background: micCheckState !== "idle" ? "var(--color-accent-dim)" : "var(--color-dark-card)",
+              color: micCheckState !== "idle" ? "var(--color-accent)" : "var(--color-text-secondary)",
             }}
-            title="Record 5 seconds of your mic, then play it back"
           >
-            {micCheckState === "recording"
-              ? "🔴 Recording..."
-              : micCheckState === "playing"
-                ? "🔊 Playing back..."
-                : "🎧 Mic Check"}
+            {micCheckState === "recording" ? "🔴 Recording..." : micCheckState === "playing" ? "🔊 Playing..." : "🎧 Mic Check"}
           </button>
         )}
       </div>
 
-      {/* Output volume — controls all incoming audio (voices) */}
-      <div className="mt-4 flex items-center gap-3">
-        <SpeakerIcon muted={voiceVolume === 0} />
-        <div className="flex flex-1 flex-col gap-1">
-          <span
-            className="text-xs"
-            style={{ color: "var(--color-primary)", fontFamily: "var(--font-display)", fontSize: "0.6rem", textTransform: "uppercase", letterSpacing: "0.1em" }}
-          >
-            Voice Volume
-          </span>
-          <input
-            type="range"
-            min="0"
-            max="100"
-            value={Math.round(voiceVolume * 100)}
-            onChange={(e) => onVoiceVolumeChange(Number(e.target.value) / 100)}
-            className="volume-slider volume-slider--voice flex-1"
-          />
-        </div>
-        <span
-          className="w-8 text-right text-xs tabular-nums"
-          style={{ color: "var(--color-text-secondary)" }}
-        >
-          {Math.round(voiceVolume * 100)}
-        </span>
-      </div>
-
-      <p
-        className="mt-3 text-xs"
-        style={{ color: "var(--color-text-secondary)" }}
-      >
+      {/* Status text */}
+      <p className="mt-3 text-xs" style={{ color: "var(--color-text-muted)" }}>
         {micCheckState === "recording"
-          ? "🔴 Recording 5 seconds — speak or sing now!"
+          ? "Recording 5 seconds — speak or sing now!"
           : micCheckState === "playing"
-            ? "🔊 Playing back — this is how others hear you."
+            ? "Playing back — this is how others hear you."
             : isMicEnabled
               ? micMode === "voice"
-                ? "Talking mode — echo cancellation + noise reduction on."
-                : "Singing mode — all processing off for best sound quality. Use headphones to avoid echo!"
-              : "Mic is muted. Unmute to talk or sing."}
+                ? "Talking mode — echo cancellation on."
+                : "Singing mode — raw audio. Use headphones!"
+              : "Mic is muted."}
       </p>
 
-      {/* Settings panel */}
+      {/* Settings panel — volume sliders + device selectors */}
       {showSettings && (
         <div
           className="mt-4 space-y-4 rounded-xl border p-4"
           style={{
             background: "var(--color-dark-card)",
             borderColor: "var(--color-dark-border)",
-            animation: "float-up 0.2s ease-out",
+            animation: "fade-in 0.15s ease-out",
           }}
         >
-          {/* Mic mode explanation */}
-          <div
-            className="rounded-lg p-3"
-            style={{ background: "var(--color-dark-bg)" }}
-          >
-            <p
-              className="mb-2 text-xs font-bold uppercase tracking-widest"
-              style={{
-                fontFamily: "var(--font-display)",
-                color: "var(--color-neon-yellow)",
-                fontSize: "0.6rem",
-              }}
-            >
-              Mic Mode
-            </p>
-            <div className="space-y-1.5 text-xs" style={{ color: "var(--color-text-secondary)" }}>
-              <p>
-                <span style={{ color: "var(--color-neon-cyan)" }}>💬 Talking</span> — Echo
-                cancellation + noise suppression. Best for chatting between songs.
-              </p>
-              <p>
-                <span style={{ color: "var(--color-neon-pink)" }}>🎤 Singing</span> — No
-                processing, stereo 48kHz. Full quality voice. Use headphones!
-              </p>
-            </div>
-          </div>
+          {/* App Volume */}
+          <VolumeSlider
+            label="App Volume"
+            value={voiceVolume}
+            onChange={onVoiceVolumeChange}
+            color="var(--color-primary)"
+          />
 
-          {/* Mic input selector */}
-          <div>
-            <label
-              className="mb-1.5 block text-xs uppercase tracking-widest"
-              style={{
-                color: "var(--color-neon-cyan)",
-                fontFamily: "var(--font-display)",
-                fontSize: "0.65rem",
-              }}
-            >
-              Microphone Input
-            </label>
-            <select
-              value={selectedInputId}
-              onChange={(e) => onInputChange(e.target.value)}
-              className="w-full cursor-pointer rounded-lg border px-3 py-2 text-sm outline-none transition-all duration-200 focus:border-[var(--color-neon-cyan)]"
-              style={{
-                background: "var(--color-dark-bg)",
-                borderColor: "var(--color-dark-border)",
-                color: "var(--color-text-primary)",
-              }}
-            >
-              {inputDevices.length === 0 && (
-                <option value="">No devices found</option>
-              )}
-              {inputDevices.map((d) => (
-                <option key={d.deviceId} value={d.deviceId}>
-                  {d.label}
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* Device selectors */}
+          <DeviceSelect
+            label="Microphone"
+            devices={inputDevices}
+            selectedId={selectedInputId}
+            onChange={onInputChange}
+          />
+          <DeviceSelect
+            label="Speaker Output"
+            devices={outputDevices}
+            selectedId={selectedOutputId}
+            onChange={onOutputChange}
+          />
 
-          {/* Audio output selector */}
-          <div>
-            <label
-              className="mb-1.5 block text-xs uppercase tracking-widest"
-              style={{
-                color: "var(--color-neon-purple)",
-                fontFamily: "var(--font-display)",
-                fontSize: "0.65rem",
-              }}
-            >
-              Audio Output
-            </label>
-            <select
-              value={selectedOutputId}
-              onChange={(e) => onOutputChange(e.target.value)}
-              className="w-full cursor-pointer rounded-lg border px-3 py-2 text-sm outline-none transition-all duration-200 focus:border-[var(--color-neon-purple)]"
-              style={{
-                background: "var(--color-dark-bg)",
-                borderColor: "var(--color-dark-border)",
-                color: "var(--color-text-primary)",
-              }}
-            >
-              {outputDevices.length === 0 && (
-                <option value="">Default</option>
-              )}
-              {outputDevices.map((d) => (
-                <option key={d.deviceId} value={d.deviceId}>
-                  {d.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Current audio settings summary */}
-          <div
-            className="rounded-lg border p-3"
-            style={{
-              borderColor: "var(--color-dark-border)",
-              background: "var(--color-dark-bg)",
-            }}
-          >
-            <p
-              className="mb-2 text-xs font-bold uppercase tracking-widest"
-              style={{
-                fontFamily: "var(--font-display)",
-                color: "var(--color-text-secondary)",
-                fontSize: "0.6rem",
-              }}
-            >
+          {/* Processing info */}
+          <div className="rounded-lg p-3" style={{ background: "var(--color-dark-bg)" }}>
+            <p className="mb-2 text-xs font-bold uppercase tracking-widest" style={{ fontFamily: "var(--font-display)", color: "var(--color-text-muted)", fontSize: "0.6rem" }}>
               Active Processing
             </p>
             <div className="grid grid-cols-2 gap-1.5 text-xs">
-              <ProcessingRow label="Echo Cancel" active={micMode === "voice"} />
-              <ProcessingRow label="Noise Suppress" active={micMode === "voice"} />
-              <ProcessingRow label="Auto Gain" active={micMode === "voice"} />
-              <ProcessingRow
-                label="Stereo"
-                active={micMode === "raw"}
-              />
-              <ProcessingRow label="48kHz" active={micMode === "raw"} />
-              <ProcessingRow label="High Bitrate" active={micMode === "raw"} />
+              <Dot label="Echo Cancel" on={micMode === "voice"} />
+              <Dot label="Noise Suppress" on={micMode === "voice"} />
+              <Dot label="Auto Gain" on={micMode === "voice"} />
+              <Dot label="Stereo 48kHz" on={micMode === "raw"} />
             </div>
           </div>
         </div>
@@ -342,48 +200,54 @@ export function AudioControls({
   );
 }
 
-function ProcessingRow({ label, active }: { label: string; active: boolean }) {
+function VolumeSlider({ label, value, onChange, color }: { label: string; value: number; onChange: (v: number) => void; color: string }) {
   return (
-    <div className="flex items-center gap-1.5">
-      <div
-        className="h-1.5 w-1.5 rounded-full"
-        style={{
-          background: active ? "var(--color-neon-cyan)" : "var(--color-dark-border)",
-        }}
-      />
-      <span style={{ color: active ? "var(--color-text-primary)" : "var(--color-text-secondary)", opacity: active ? 1 : 0.5 }}>
-        {label}
+    <div className="flex items-center gap-3">
+      <div className="flex flex-1 flex-col gap-1.5">
+        <span className="text-xs font-medium uppercase tracking-widest" style={{ fontFamily: "var(--font-display)", color, fontSize: "0.6rem" }}>
+          {label}
+        </span>
+        <input
+          type="range" min="0" max="100"
+          value={Math.round(value * 100)}
+          onChange={(e) => onChange(Number(e.target.value) / 100)}
+          className="volume-slider flex-1"
+        />
+      </div>
+      <span className="w-8 text-right text-xs tabular-nums" style={{ color: "var(--color-text-muted)" }}>
+        {Math.round(value * 100)}
       </span>
     </div>
   );
 }
 
-function SpeakerIcon({ muted }: { muted: boolean }) {
+function DeviceSelect({ label, devices, selectedId, onChange }: { label: string; devices: AudioDevice[]; selectedId: string; onChange: (id: string) => void }) {
   return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke={muted ? "var(--color-text-secondary)" : "var(--color-neon-purple)"}
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      style={{ flexShrink: 0, opacity: muted ? 0.5 : 1 }}
-    >
-      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-      {muted ? (
-        <>
-          <line x1="23" x2="17" y1="9" y2="15" />
-          <line x1="17" x2="23" y1="9" y2="15" />
-        </>
-      ) : (
-        <>
-          <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
-          <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
-        </>
-      )}
-    </svg>
+    <div>
+      <label className="mb-1.5 block text-xs font-medium uppercase tracking-widest" style={{ color: "var(--color-text-muted)", fontFamily: "var(--font-display)", fontSize: "0.6rem" }}>
+        {label}
+      </label>
+      <select
+        value={selectedId}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full cursor-pointer rounded-lg border px-3 py-2 text-sm outline-none transition-all duration-200 focus:border-[var(--color-primary)]"
+        style={{ background: "var(--color-dark-bg)", borderColor: "var(--color-dark-border)", color: "var(--color-text-primary)" }}
+      >
+        {devices.length === 0 && <option value="">No devices found</option>}
+        {devices.map((d) => (
+          <option key={d.deviceId} value={d.deviceId}>{d.label}</option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function Dot({ label, on }: { label: string; on: boolean }) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <div className="h-1.5 w-1.5 rounded-full" style={{ background: on ? "var(--color-primary)" : "var(--color-dark-border)" }} />
+      <span style={{ color: on ? "var(--color-text-primary)" : "var(--color-text-secondary)", opacity: on ? 1 : 0.5 }}>{label}</span>
+    </div>
   );
 }
 

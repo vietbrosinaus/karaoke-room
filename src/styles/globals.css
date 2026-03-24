@@ -60,20 +60,20 @@ body {
   min-height: 100dvh;
 }
 
-/* Volume slider styling */
+/* Volume slider styling — rounded ends to match circular thumb */
 .volume-slider {
   -webkit-appearance: none;
   appearance: none;
-  height: 4px;
-  border-radius: 2px;
+  height: 6px;
+  border-radius: 3px;
   background: var(--color-dark-border);
   outline: none;
   cursor: pointer;
 }
 .volume-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   background: var(--color-primary);
   cursor: pointer;
@@ -83,16 +83,16 @@ body {
   transform: scale(1.2);
 }
 .volume-slider::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   background: var(--color-primary);
   border: none;
   cursor: pointer;
 }
 .volume-slider::-moz-range-track {
-  height: 4px;
-  border-radius: 2px;
+  height: 6px;
+  border-radius: 3px;
   background: var(--color-dark-border);
 }
 .volume-slider--music::-webkit-slider-thumb {

@@ -61,7 +61,7 @@ export function ParticipantList({
             id.startsWith(p.name + "-") || id === p.name
           );
           const isMe = p.id === myPeerId;
-          const isExpanded = expandedId === p.id && !isMe;
+          const isExpanded = expandedId === p.id;
           // Find LiveKit identity from audio elements (reliable, not speaker-dependent)
           const lkIdentity = (() => {
             const el = document.querySelector<HTMLAudioElement>(
@@ -74,8 +74,8 @@ export function ParticipantList({
           return (
             <li
               key={p.id}
-              onClick={() => !isMe && setExpandedId(isExpanded ? null : p.id)}
-              className={`rounded-lg px-3 py-2 text-sm transition-all duration-200 ${!isMe ? "cursor-pointer" : ""}`}
+              onClick={() => setExpandedId(isExpanded ? null : p.id)}
+              className="cursor-pointer rounded-lg px-3 py-2 text-sm transition-all duration-200"
               style={{
                 background: isSpeaking
                   ? "rgba(139, 92, 246, 0.18)"
@@ -188,17 +188,16 @@ export function ParticipantList({
                   style={{ animation: "fade-in 0.15s ease-out" }}
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                    <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
-                  </svg>
+                  <span className="shrink-0 text-[10px] uppercase tracking-wider" style={{ color: "var(--color-text-muted)" }}>
+                    {isMe ? "Your mic" : "Volume"}
+                  </span>
                   <input
                     type="range"
                     min="0"
                     max="100"
                     value={Math.round(personVol * 100)}
                     onChange={(e) => onPersonVolumeChange(lkIdentity, Number(e.target.value) / 100)}
-                    className="volume-slider volume-slider--voice flex-1"
+                    className="volume-slider flex-1"
                   />
                   <span className="w-6 text-right text-[10px] tabular-nums" style={{ color: "var(--color-text-muted)" }}>
                     {Math.round(personVol * 100)}
