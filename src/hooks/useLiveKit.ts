@@ -364,6 +364,63 @@ export function useLiveKit({
 
   // --- System audio sharing ---
 
+  // Force mic to raw/singing mode: no echo cancellation, no noise suppression,
+  // no AGC, stereo 48kHz. This prevents the browser from nerfing the singer's
+  // voice when system audio is also being published.
+  const forceMicRaw = useCallback(async () => {
+    const room = roomRef.current;
+    if (!room || !isMicEnabled) return;
+    console.log("[LiveKit] Forcing mic to raw mode for sharing...");
+    try {
+      await room.localParticipant.setMicrophoneEnabled(false);
+      room.options.audioCaptureDefaults = {
+        ...room.options.audioCaptureDefaults,
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false,
+        channelCount: 2,
+        sampleRate: 48000,
+      };
+      room.options.publishDefaults = {
+        ...room.options.publishDefaults,
+        audioPreset: AudioPresets.musicHighQualityStereo,
+        dtx: false, // never drop "silent" packets — singing has quiet moments
+      };
+      await room.localParticipant.setMicrophoneEnabled(true);
+      console.log("[LiveKit] Mic republished in raw mode");
+    } catch (err) {
+      console.error("[LiveKit] Error forcing mic to raw:", err);
+    }
+  }, [isMicEnabled]);
+
+  // Restore mic to its configured mode (based on micModeRef)
+  const restoreMicMode = useCallback(async () => {
+    const room = roomRef.current;
+    if (!room || !isMicEnabled) return;
+    const isRaw = micModeRef.current === "raw";
+    console.log("[LiveKit] Restoring mic to", micModeRef.current, "mode");
+    try {
+      await room.localParticipant.setMicrophoneEnabled(false);
+      room.options.audioCaptureDefaults = {
+        ...room.options.audioCaptureDefaults,
+        echoCancellation: !isRaw,
+        noiseSuppression: !isRaw,
+        autoGainControl: !isRaw,
+        channelCount: isRaw ? 2 : 1,
+        sampleRate: isRaw ? 48000 : undefined,
+      };
+      room.options.publishDefaults = {
+        ...room.options.publishDefaults,
+        audioPreset: isRaw ? AudioPresets.musicHighQualityStereo : AudioPresets.music,
+        dtx: !isRaw,
+      };
+      await room.localParticipant.setMicrophoneEnabled(true);
+      console.log("[LiveKit] Mic restored to", micModeRef.current);
+    } catch (err) {
+      console.error("[LiveKit] Error restoring mic mode:", err);
+    }
+  }, [isMicEnabled]);
+
   const startSharing = useCallback(async () => {
     const room = roomRef.current;
     if (!room || !room.localParticipant) {
@@ -389,6 +446,13 @@ export function useLiveKit({
       if (!audioTrack) {
         setSharingError("No audio captured. Check 'Share audio' in the dialog.");
         return;
+      }
+
+      // Force mic to raw mode BEFORE publishing system audio.
+      // This eliminates processing-induced latency between the two tracks
+      // and prevents echo cancellation from suppressing the singer's voice.
+      if (micModeRef.current !== "raw") {
+        await forceMicRaw();
       }
 
       // Detect song name from tab title in track label
@@ -437,6 +501,8 @@ export function useLiveKit({
         systemAudioPubRef.current = null;
         setIsSharing(false);
         setCurrentSong(null);
+        // Restore mic to configured mode
+        void restoreMicMode();
       };
     } catch (err) {
       if (err instanceof Error && err.name === "NotAllowedError") {
@@ -447,7 +513,7 @@ export function useLiveKit({
         setSharingError(msg);
       }
     }
-  }, []);
+  }, [forceMicRaw, restoreMicMode]);
 
   const stopSharing = useCallback(() => {
     const room = roomRef.current;
@@ -467,7 +533,10 @@ export function useLiveKit({
     setIsSharing(false);
     setSharingError(null);
     setCurrentSong(null);
-  }, []);
+
+    // Restore mic to configured mode after sharing ends
+    void restoreMicMode();
+  }, [restoreMicMode]);
 
   // Auto-stop sharing when not my turn
   useEffect(() => {
