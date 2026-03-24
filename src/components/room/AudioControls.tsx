@@ -3,11 +3,13 @@
 import { useState } from "react";
 import type { AudioDevice, MicMode } from "~/hooks/useAudioDevices";
 
+type MicCheckState = "idle" | "recording" | "playing";
+
 interface AudioControlsProps {
   isMicEnabled: boolean;
   toggleMic: () => Promise<void>;
-  isMonitoring: boolean;
-  toggleMonitor: () => void;
+  micCheckState: MicCheckState;
+  onMicCheck: () => void;
   inputDevices: AudioDevice[];
   outputDevices: AudioDevice[];
   selectedInputId: string;
@@ -25,8 +27,8 @@ interface AudioControlsProps {
 export function AudioControls({
   isMicEnabled,
   toggleMic,
-  isMonitoring,
-  toggleMonitor,
+  micCheckState,
+  onMicCheck,
   inputDevices,
   outputDevices,
   selectedInputId,
@@ -136,25 +138,30 @@ export function AudioControls({
           </button>
         </div>
 
-        {/* Monitor toggle — hear yourself */}
+        {/* Mic check — record & playback */}
         {isMicEnabled && (
           <button
-            onClick={toggleMonitor}
-            className="cursor-pointer rounded-lg border px-3 py-2 text-xs font-medium transition-all duration-200 hover:scale-105"
+            onClick={onMicCheck}
+            disabled={micCheckState !== "idle"}
+            className="cursor-pointer rounded-lg border px-3 py-2 text-xs font-medium transition-all duration-200 hover:scale-105 disabled:cursor-not-allowed disabled:opacity-60"
             style={{
-              borderColor: isMonitoring
+              borderColor: micCheckState !== "idle"
                 ? "var(--color-neon-yellow)"
                 : "var(--color-dark-border)",
-              background: isMonitoring
+              background: micCheckState !== "idle"
                 ? "rgba(255, 225, 86, 0.15)"
                 : "var(--color-dark-card)",
-              color: isMonitoring
+              color: micCheckState !== "idle"
                 ? "var(--color-neon-yellow)"
                 : "var(--color-text-secondary)",
             }}
-            title="Listen to your own mic to check how you sound"
+            title="Record 5 seconds of your mic, then play it back"
           >
-            🎧 {isMonitoring ? "Hearing Self" : "Hear Myself"}
+            {micCheckState === "recording"
+              ? "🔴 Recording..."
+              : micCheckState === "playing"
+                ? "🔊 Playing back..."
+                : "🎧 Mic Check"}
           </button>
         )}
       </div>
@@ -220,13 +227,15 @@ export function AudioControls({
         className="mt-3 text-xs"
         style={{ color: "var(--color-text-secondary)" }}
       >
-        {isMonitoring
-          ? "⚠ Monitoring on — use headphones to avoid feedback!"
-          : isMicEnabled
-            ? micMode === "voice"
-              ? "Talking mode — echo cancellation + noise reduction on."
-              : "Singing mode — all processing off for best sound quality. Use headphones to avoid echo!"
-            : "Mic is muted. Unmute to talk or sing."}
+        {micCheckState === "recording"
+          ? "🔴 Recording 5 seconds — speak or sing now!"
+          : micCheckState === "playing"
+            ? "🔊 Playing back — this is how others hear you."
+            : isMicEnabled
+              ? micMode === "voice"
+                ? "Talking mode — echo cancellation + noise reduction on."
+                : "Singing mode — all processing off for best sound quality. Use headphones to avoid echo!"
+              : "Mic is muted. Unmute to talk or sing."}
       </p>
 
       {/* Settings panel */}

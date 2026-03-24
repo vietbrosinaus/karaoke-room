@@ -60,8 +60,8 @@ export function RoomView({ roomCode, playerName }: RoomViewProps) {
     error: liveKitError,
     isMicEnabled,
     toggleMic,
-    isMonitoring,
-    toggleMonitor,
+    micCheckState,
+    startMicCheck,
     isSharing,
     startSharing,
     stopSharing,
@@ -251,8 +251,8 @@ export function RoomView({ roomCode, playerName }: RoomViewProps) {
           <AudioControls
             isMicEnabled={isMicEnabled}
             toggleMic={toggleMic}
-            isMonitoring={isMonitoring}
-            toggleMonitor={toggleMonitor}
+            micCheckState={micCheckState}
+            onMicCheck={startMicCheck}
             inputDevices={inputDevices}
             outputDevices={outputDevices}
             selectedInputId={selectedInputId}

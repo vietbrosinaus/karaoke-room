@@ -25,14 +25,16 @@ interface UseLiveKitParams {
   micMode: MicMode;
 }
 
+type MicCheckState = "idle" | "recording" | "playing";
+
 interface UseLiveKitReturn {
   room: Room | null;
   isConnected: boolean;
   error: string | null;
   isMicEnabled: boolean;
   toggleMic: () => Promise<void>;
-  isMonitoring: boolean;
-  toggleMonitor: () => void;
+  micCheckState: MicCheckState;
+  startMicCheck: () => void;
   isSharing: boolean;
   startSharing: () => Promise<void>;
   stopSharing: () => void;
@@ -57,12 +59,12 @@ export function useLiveKit({
   const [remoteParticipantCount, setRemoteParticipantCount] = useState(0);
   const [currentSong, setCurrentSong] = useState<string | null>(null);
 
-  const [isMonitoring, setIsMonitoring] = useState(false);
+  const [micCheckState, setMicCheckState] = useState<MicCheckState>("idle");
 
   const roomRef = useRef<Room | null>(null);
   const systemAudioTrackRef = useRef<MediaStreamTrack | null>(null);
   const systemAudioPubRef = useRef<LocalTrackPublication | null>(null);
-  const monitorCtxRef = useRef<AudioContext | null>(null);
+  const micCheckAbortRef = useRef<(() => void) | null>(null);
   const micModeRef = useRef<MicMode>(micMode);
   micModeRef.current = micMode;
 
@@ -345,25 +347,18 @@ export function useLiveKit({
     });
   }, [selectedOutputDeviceId, isConnected]);
 
-  // --- Mic monitor (loopback to hear yourself) ---
+  // --- Mic check (record-and-playback) ---
+  // Records 5 seconds of mic audio, then plays it back so you can hear
+  // exactly how you sound to other participants. No stuttering issues
+  // since playback is from a finished recording, not a live loopback.
 
-  const toggleMonitor = useCallback(() => {
-    setIsMonitoring((prev) => !prev);
-  }, []);
+  const startMicCheck = useCallback(() => {
+    if (micCheckState !== "idle") return;
 
-  // Effect: monitor mic via Web Audio API (low-latency, no stuttering).
-  // Uses AudioContext's dedicated audio thread instead of <audio> element.
-  useEffect(() => {
     const room = roomRef.current;
-    if (!isMonitoring || !isMicEnabled || !room) {
-      if (monitorCtxRef.current?.state !== "closed") {
-        void monitorCtxRef.current?.close();
-      }
-      monitorCtxRef.current = null;
-      return;
-    }
+    if (!room || !isMicEnabledRef.current) return;
 
-    // When bypass is active, monitor the raw bypass stream directly
+    // Get the active mic track (bypass or managed)
     let mediaTrack: MediaStreamTrack | undefined;
     if (bypassRawStreamRef.current) {
       mediaTrack = bypassRawStreamRef.current.getAudioTracks()[0];
@@ -373,31 +368,51 @@ export function useLiveKit({
     }
 
     if (!mediaTrack) {
-      console.log("[LiveKit] No mic track to monitor");
+      console.log("[LiveKit] No mic track for mic check");
       return;
     }
 
-    // Web Audio pipeline: MediaStream → source → gain → destination (speakers)
-    // Runs on a dedicated high-priority audio thread — no jitter/stuttering.
-    const ctx = new AudioContext();
-    const source = ctx.createMediaStreamSource(new MediaStream([mediaTrack]));
-    const gain = ctx.createGain();
-    gain.gain.value = 1.0;
-    source.connect(gain);
-    gain.connect(ctx.destination);
-    monitorCtxRef.current = ctx;
-    console.log("[LiveKit] Mic monitor ON (Web Audio)");
+    let cancelled = false;
+    micCheckAbortRef.current = () => { cancelled = true; };
 
-    return () => {
-      source.disconnect();
-      gain.disconnect();
-      if (ctx.state !== "closed") {
-        void ctx.close();
-      }
-      monitorCtxRef.current = null;
-      console.log("[LiveKit] Mic monitor OFF");
+    setMicCheckState("recording");
+    console.log("[LiveKit] Mic check: recording 5s...");
+
+    const recorder = new MediaRecorder(new MediaStream([mediaTrack]), {
+      mimeType: MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : "audio/webm",
+    });
+    const chunks: Blob[] = [];
+    recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+
+    recorder.onstop = () => {
+      if (cancelled) { setMicCheckState("idle"); return; }
+
+      const blob = new Blob(chunks, { type: recorder.mimeType });
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+
+      setMicCheckState("playing");
+      console.log("[LiveKit] Mic check: playing back...");
+
+      audio.onended = () => {
+        URL.revokeObjectURL(url);
+        setMicCheckState("idle");
+        console.log("[LiveKit] Mic check: done");
+      };
+      audio.onerror = () => {
+        URL.revokeObjectURL(url);
+        setMicCheckState("idle");
+      };
+      void audio.play().catch(() => setMicCheckState("idle"));
     };
-  }, [isMonitoring, isMicEnabled, isSharing]);
+
+    recorder.start();
+    setTimeout(() => {
+      if (recorder.state === "recording") recorder.stop();
+    }, 5000);
+  }, [micCheckState]);
 
   // --- Microphone ---
 
@@ -676,8 +691,8 @@ export function useLiveKit({
     error,
     isMicEnabled,
     toggleMic,
-    isMonitoring,
-    toggleMonitor,
+    micCheckState,
+    startMicCheck,
     isSharing,
     startSharing,
     stopSharing,
