@@ -66,7 +66,6 @@ export function useRoomState({
 
   const onMessage = useCallback((msg: ServerMessage) => {
     console.log("[RoomState] Received message:", msg.type);
-    // Forward all messages to the raw handler (for useWebRTC)
     onRawMessageRef.current?.(msg);
 
     switch (msg.type) {
@@ -111,19 +110,19 @@ export function useRoomState({
           return updated;
         });
         break;
-      case "reaction":
+      case "reaction": {
+        const reactionId = `r-${++reactionIdRef.current}`;
         setReactions((prev) => {
-          const id = `r-${++reactionIdRef.current}`;
           const left = Math.random() * 80 + 10; // 10-90%
-          const next = [...prev, { id, from: msg.from, fromName: msg.fromName, emoji: msg.emoji, timestamp: Date.now(), left }];
-          // Keep max 20 active reactions
+          const next = [...prev, { id: reactionId, from: msg.from, fromName: msg.fromName, emoji: msg.emoji, timestamp: Date.now(), left }];
           return next.length > 20 ? next.slice(-20) : next;
         });
-        // Auto-remove after 3 seconds
+        // Remove this specific reaction by ID after 3 seconds
         setTimeout(() => {
-          setReactions((prev) => prev.slice(1));
+          setReactions((prev) => prev.filter((r) => r.id !== reactionId));
         }, 3000);
         break;
+      }
       case "you-joined":
         console.log("[RoomState] My peer ID:", msg.peerId);
         setMyPeerId(msg.peerId);

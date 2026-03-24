@@ -7,6 +7,10 @@ interface ParticipantEntry {
 }
 
 const MAX_CHAT_MESSAGES = 100;
+const MAX_CHAT_LENGTH = 500;
+const MAX_NAME_LENGTH = 30;
+const MAX_BROWSER_LENGTH = 64;
+const ALLOWED_EMOJIS = new Set(["🔥", "👏", "😍", "🎵", "💯", "🙌"]);
 
 export default class KaraokeRoom implements Party.Server {
   participants: Map<string, ParticipantEntry> = new Map();
@@ -114,7 +118,7 @@ export default class KaraokeRoom implements Party.Server {
       return;
     }
 
-    const trimmedName = name.trim();
+    const trimmedName = name.trim().slice(0, MAX_NAME_LENGTH);
 
     // Handle re-join: update name if already present
     const existing = this.participants.get(sender.id);
@@ -212,7 +216,7 @@ export default class KaraokeRoom implements Party.Server {
       return;
     }
 
-    const trimmedText = text.trim();
+    const trimmedText = text.trim().slice(0, MAX_CHAT_LENGTH);
     if (!trimmedText) return;
 
     const chatMsg: ChatMessage = {
@@ -241,7 +245,7 @@ export default class KaraokeRoom implements Party.Server {
   private handleReaction(sender: Party.Connection, emoji: string) {
     const participant = this.participants.get(sender.id);
     if (!participant) return;
-    // Relay to all — no storage needed
+    if (!ALLOWED_EMOJIS.has(emoji)) return; // reject unknown emojis
     this.broadcast({
       type: "reaction",
       from: sender.id,
@@ -253,6 +257,10 @@ export default class KaraokeRoom implements Party.Server {
   private handleStatusUpdate(sender: Party.Connection, status: ParticipantStatus) {
     if (!this.participants.has(sender.id)) return;
 
+    // Cap browser string length to prevent abuse
+    if (status.browser) {
+      status.browser = status.browser.slice(0, MAX_BROWSER_LENGTH);
+    }
     this.participantStatus.set(sender.id, status);
     // Send lightweight status update instead of full room state
     this.broadcast({

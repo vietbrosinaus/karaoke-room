@@ -23,12 +23,10 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Use client-provided session ID for stable identity across refreshes.
-    // If the same identity reconnects, LiveKit replaces the old participant
-    // instantly — no ghost participants burning quota.
-    // Falls back to random UUID if no session ID provided (backwards compat).
-    const sessionId = req.nextUrl.searchParams.get("sid");
-    const uniqueId = sessionId || `${name}-${crypto.randomUUID().slice(0, 8)}`;
+    // Identity is server-generated — never trust client-supplied values.
+    // Append random suffix to prevent collisions when multiple users
+    // choose the same display name.
+    const uniqueId = `${name}-${crypto.randomUUID().slice(0, 8)}`;
 
     const at = new AccessToken(apiKey, apiSecret, {
       identity: uniqueId,
