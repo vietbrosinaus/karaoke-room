@@ -135,6 +135,7 @@ export function useLiveKit({
         const el = track.attach();
         el.id = `lk-audio-${participant.identity}-${track.sid}`;
         el.dataset.lkType = isMusic ? "music" : "mic";
+        el.dataset.lkIdentity = participant.identity;
         el.style.display = "none";
         el.autoplay = true;
         el.preload = "none";
@@ -601,9 +602,9 @@ export function useLiveKit({
       const pub = await room.localParticipant.publishTrack(bypassTrack, {
         name: "bypass-mic",
         source: Track.Source.Microphone,
-        audioPreset: AudioPresets.musicHighQualityStereo,
+        audioPreset: AudioPresets.musicHighQuality, // 128kbps — less CPU than 320kbps
         dtx: false,
-        red: true,
+        red: false, // RED doubles encode load at high bitrate
       });
       bypassPubRef.current = pub;
 

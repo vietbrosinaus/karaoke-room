@@ -169,7 +169,7 @@ export function AudioControls({
             className="text-xs"
             style={{ color: "var(--color-primary)", fontFamily: "var(--font-display)", fontSize: "0.6rem", textTransform: "uppercase", letterSpacing: "0.1em" }}
           >
-            Output Volume
+            Voice Volume
           </span>
           <input
             type="range"

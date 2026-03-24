@@ -62,10 +62,13 @@ export function ParticipantList({
           );
           const isMe = p.id === myPeerId;
           const isExpanded = expandedId === p.id && !isMe;
-          // Find LiveKit identity for this participant (for per-person volume)
-          const lkIdentity = Array.from(activeSpeakers).find((id) =>
-            id.startsWith(p.name + "-") || id === p.name
-          ) ?? p.name;
+          // Find LiveKit identity from audio elements (reliable, not speaker-dependent)
+          const lkIdentity = (() => {
+            const el = document.querySelector<HTMLAudioElement>(
+              `audio[data-lk-identity^="${CSS.escape(p.name)}-"]`
+            );
+            return el?.dataset.lkIdentity ?? p.name;
+          })();
           const personVol = personVolumes[lkIdentity] ?? 1;
 
           return (

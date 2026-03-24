@@ -92,10 +92,7 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
       if (el.dataset.lkType === "music") {
         el.volume = musicVolume;
       } else {
-        // Extract identity from element ID: lk-audio-{identity}-{trackSid}
-        const idParts = el.id.replace("lk-audio-", "").split("-");
-        // Identity is everything except the last part (trackSid)
-        const identity = idParts.slice(0, -1).join("-");
+        const identity = el.dataset.lkIdentity ?? "";
         const personVol = personVolumes[identity] ?? 1;
         el.volume = voiceVolume * personVol;
       }
@@ -125,8 +122,7 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
       for (const m of mutations) {
         for (const node of m.addedNodes) {
           if (node instanceof HTMLAudioElement && node.id?.startsWith("lk-audio-")) {
-            // Defer to next tick so dataset is set
-            requestAnimationFrame(() => applyAllVolumes());
+            applyAllVolumes();
           }
         }
       }
