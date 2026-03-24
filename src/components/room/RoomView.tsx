@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useRoomState } from "~/hooks/useRoomState";
 import { useLiveKit } from "~/hooks/useLiveKit";
 import { useAudioDevices } from "~/hooks/useAudioDevices";
@@ -20,6 +21,7 @@ interface RoomViewProps {
 }
 
 export function RoomView({ roomCode, playerName }: RoomViewProps) {
+  const router = useRouter();
   const [browser, setBrowser] = useState<BrowserInfo>({ name: "Unknown", isChromium: true, canSing: true, isMobile: false });
   useEffect(() => { setBrowser(detectBrowser()); }, []);
 
@@ -177,6 +179,17 @@ export function RoomView({ roomCode, playerName }: RoomViewProps) {
                 ? "Connecting to room..."
                 : "Connecting to audio..."}
           </div>
+          <button
+            onClick={() => router.push("/")}
+            className="cursor-pointer rounded-lg border px-3 py-1.5 text-xs font-medium transition-all duration-200 hover:scale-105 active:scale-95"
+            style={{
+              fontFamily: "var(--font-display)",
+              borderColor: "var(--color-dark-border)",
+              color: "var(--color-text-secondary)",
+            }}
+          >
+            Leave
+          </button>
         </div>
       </header>
 
