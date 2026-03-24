@@ -43,7 +43,7 @@ export default function Home() {
   };
 
   return (
-    <main className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden px-4">
+    <main className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden px-5 py-10 sm:px-4">
       {/* Background glow effects */}
       <div
         className="pointer-events-none absolute -top-40 left-1/2 h-[600px] w-[600px] -translate-x-1/2 rounded-full opacity-20 blur-[120px]"
@@ -66,7 +66,7 @@ export default function Home() {
         style={{ animation: "float-up 0.6s ease-out" }}
       >
         <h1
-          className="text-center text-7xl font-bold tracking-tight sm:text-8xl"
+          className="text-center text-5xl font-bold tracking-tight sm:text-7xl md:text-8xl"
           style={{
             fontFamily: "var(--font-display)",
             background:
@@ -88,7 +88,7 @@ export default function Home() {
 
       {/* Card */}
       <div
-        className="relative w-full max-w-md rounded-2xl border p-8"
+        className="relative w-full max-w-md rounded-2xl border p-6 sm:p-8"
         style={{
           animation: "float-up 0.8s ease-out",
           background: "var(--color-dark-surface)",
@@ -187,7 +187,7 @@ export default function Home() {
           </button>
         ) : (
           <div
-            className="flex gap-3"
+            className="flex gap-2 sm:gap-3"
             style={{ animation: "float-up 0.3s ease-out" }}
           >
             <input
@@ -199,7 +199,7 @@ export default function Home() {
               }}
               placeholder="ABC123"
               maxLength={CODE_LENGTH}
-              className="flex-1 rounded-xl border px-4 py-3 text-center font-mono text-lg uppercase tracking-[0.3em] outline-none transition-all duration-200 focus:border-[var(--color-neon-cyan)]"
+              className="min-w-0 flex-1 rounded-xl border px-3 py-3 text-center font-mono text-base uppercase tracking-[0.2em] outline-none transition-all duration-200 focus:border-[var(--color-neon-cyan)] sm:px-4 sm:text-lg sm:tracking-[0.3em]"
               style={{
                 background: "var(--color-dark-card)",
                 borderColor: "var(--color-dark-border)",
@@ -209,7 +209,7 @@ export default function Home() {
             />
             <button
               onClick={handleJoin}
-              className="cursor-pointer rounded-xl px-6 py-3 font-bold transition-all duration-200 hover:scale-105 active:scale-95"
+              className="shrink-0 cursor-pointer rounded-xl px-5 py-3 font-bold transition-all duration-200 hover:scale-105 active:scale-95 sm:px-6"
               style={{
                 fontFamily: "var(--font-display)",
                 background: "var(--color-neon-cyan)",

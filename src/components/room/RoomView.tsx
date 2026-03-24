@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRoomState } from "~/hooks/useRoomState";
 import { useLiveKit } from "~/hooks/useLiveKit";
 import { useAudioDevices } from "~/hooks/useAudioDevices";
+import { detectBrowser, type BrowserInfo } from "~/lib/browser";
 import { QueuePanel } from "./QueuePanel";
 import { AudioControls } from "./AudioControls";
 import { ParticipantList } from "./ParticipantList";
@@ -11,6 +12,7 @@ import { NowSinging } from "./NowSinging";
 import { InviteCode } from "./InviteCode";
 import { StatusBar } from "./StatusBar";
 import { ChatPanel } from "./ChatPanel";
+import { ReactionBar } from "./ReactionBar";
 
 interface RoomViewProps {
   roomCode: string;
@@ -18,6 +20,9 @@ interface RoomViewProps {
 }
 
 export function RoomView({ roomCode, playerName }: RoomViewProps) {
+  const [browser, setBrowser] = useState<BrowserInfo>({ name: "Unknown", isChromium: true, canSing: true, isMobile: false });
+  useEffect(() => { setBrowser(detectBrowser()); }, []);
+
   const {
     roomState,
     myPeerId,
@@ -28,8 +33,10 @@ export function RoomView({ roomCode, playerName }: RoomViewProps) {
     isMyTurn,
     sendChat,
     sendStatusUpdate,
+    sendReaction,
     chatMessages,
     participantStatus,
+    reactions,
   } = useRoomState({ roomCode, playerName });
 
   const {
@@ -186,6 +193,22 @@ export function RoomView({ roomCode, playerName }: RoomViewProps) {
         </div>
       )}
 
+      {/* Browser warning */}
+      {!browser.canSing && (
+        <div
+          className="relative z-10 mx-6 mt-4 rounded-lg px-4 py-2.5 text-sm"
+          style={{
+            background: "rgba(255, 225, 86, 0.1)",
+            color: "var(--color-neon-yellow)",
+            border: "1px solid rgba(255, 225, 86, 0.25)",
+          }}
+        >
+          {browser.isMobile
+            ? "📱 Mobile detected — you can listen and chat, but singing (audio sharing) requires a desktop Chromium browser."
+            : `⚠ ${browser.name} detected — singing (audio sharing) works best on Chrome or Edge. You can still listen and chat!`}
+        </div>
+      )}
+
       {/* Main content */}
       <div className="relative z-10 flex flex-1 flex-col gap-6 p-6 lg:flex-row">
         {/* Left: Stage area */}
@@ -204,6 +227,11 @@ export function RoomView({ roomCode, playerName }: RoomViewProps) {
                 ? participantStatus[roomState.currentSingerId]?.currentSong ?? null
                 : null
             }
+          />
+
+          <ReactionBar
+            reactions={reactions}
+            onReact={sendReaction}
           />
 
           <AudioControls
@@ -233,6 +261,7 @@ export function RoomView({ roomCode, playerName }: RoomViewProps) {
             myPeerId={myPeerId}
             onJoinQueue={joinQueue}
             onLeaveQueue={leaveQueue}
+            canSing={browser.canSing}
           />
           <ParticipantList
             participants={roomState.participants}

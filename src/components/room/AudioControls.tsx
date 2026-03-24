@@ -96,10 +96,11 @@ export function AudioControls({
           {isMicEnabled ? "Mute" : "Unmute"}
         </button>
 
-        {/* Mic mode toggle */}
+        {/* Mic mode toggle — Talking vs Singing */}
         <div
           className="flex overflow-hidden rounded-lg border"
           style={{ borderColor: "var(--color-dark-border)" }}
+          title="Talking mode adds noise reduction. Singing mode preserves your voice."
         >
           <button
             onClick={() => onMicModeChange("voice")}
@@ -115,7 +116,7 @@ export function AudioControls({
                   : "var(--color-text-secondary)",
             }}
           >
-            Voice
+            💬 Talking
           </button>
           <button
             onClick={() => onMicModeChange("raw")}
@@ -131,11 +132,11 @@ export function AudioControls({
                   : "var(--color-text-secondary)",
             }}
           >
-            Raw
+            🎤 Singing
           </button>
         </div>
 
-        {/* Monitor toggle */}
+        {/* Monitor toggle — hear yourself */}
         {isMicEnabled && (
           <button
             onClick={toggleMonitor}
@@ -151,9 +152,9 @@ export function AudioControls({
                 ? "var(--color-neon-yellow)"
                 : "var(--color-text-secondary)",
             }}
-            title="Hear your own mic (for testing)"
+            title="Listen to your own mic to check how you sound"
           >
-            🎧 {isMonitoring ? "Monitor ON" : "Monitor"}
+            🎧 {isMonitoring ? "Hearing Self" : "Hear Myself"}
           </button>
         )}
       </div>
@@ -220,12 +221,12 @@ export function AudioControls({
         style={{ color: "var(--color-text-secondary)" }}
       >
         {isMonitoring
-          ? "⚠ You're hearing your own mic. Use headphones to avoid feedback!"
+          ? "⚠ Monitoring on — use headphones to avoid feedback!"
           : isMicEnabled
             ? micMode === "voice"
-              ? "Voice mode: echo cancellation + noise suppression on. Best for talking."
-              : "Raw mode: no audio processing. Best for singing — use headphones!"
-            : "Your mic is muted. Click to start talking."}
+              ? "Talking mode — noise reduction on, great for chatting between songs."
+              : "Singing mode — no processing, full quality. Use headphones!"
+            : "Mic is muted. Unmute to talk or sing."}
       </p>
 
       {/* Settings panel */}
@@ -255,12 +256,12 @@ export function AudioControls({
             </p>
             <div className="space-y-1.5 text-xs" style={{ color: "var(--color-text-secondary)" }}>
               <p>
-                <span style={{ color: "var(--color-neon-cyan)" }}>Voice</span> — Echo
-                cancellation, noise suppression, auto gain. Great for chatting.
+                <span style={{ color: "var(--color-neon-cyan)" }}>💬 Talking</span> — Echo
+                cancellation + noise suppression. Best for chatting between songs.
               </p>
               <p>
-                <span style={{ color: "var(--color-neon-pink)" }}>Raw</span> — No
-                processing, stereo 48kHz. Preserves your singing voice. Wear headphones to avoid echo.
+                <span style={{ color: "var(--color-neon-pink)" }}>🎤 Singing</span> — No
+                processing, stereo 48kHz. Full quality voice. Use headphones!
               </p>
             </div>
           </div>

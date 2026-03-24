@@ -58,6 +58,9 @@ export default class KaraokeRoom implements Party.Server {
           currentSong: msg.currentSong,
         });
         break;
+      case "reaction":
+        this.handleReaction(sender, msg.emoji);
+        break;
       default:
         this.send(sender, { type: "error", message: "Unknown message type" });
     }
@@ -231,6 +234,18 @@ export default class KaraokeRoom implements Party.Server {
       fromName: chatMsg.fromName,
       text: chatMsg.text,
       timestamp: chatMsg.timestamp,
+    });
+  }
+
+  private handleReaction(sender: Party.Connection, emoji: string) {
+    const participant = this.participants.get(sender.id);
+    if (!participant) return;
+    // Relay to all — no storage needed
+    this.broadcast({
+      type: "reaction",
+      from: sender.id,
+      fromName: participant.name,
+      emoji,
     });
   }
 

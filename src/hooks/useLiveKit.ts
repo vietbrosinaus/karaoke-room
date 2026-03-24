@@ -177,6 +177,12 @@ export function useLiveKit({
         setIsConnected(true);
         setError(null);
         updateCount();
+
+        // Resume audio context so remote audio plays without needing mic toggle.
+        // Browsers block autoplay — startAudio() registers a click handler to resume.
+        room.startAudio().catch((e) => {
+          console.warn("[LiveKit] startAudio failed (will retry on user click):", e);
+        });
       } catch (err) {
         if (cancelled) return;
         const msg = err instanceof Error ? err.message : "Connection failed";
@@ -187,8 +193,23 @@ export function useLiveKit({
 
     void connect();
 
+    // Resume audio on first user interaction (autoplay policy workaround).
+    // This ensures remote audio plays even if the user hasn't toggled their mic.
+    const resumeAudio = () => {
+      if (room.canPlaybackAudio) return;
+      room.startAudio().catch(() => {});
+      // Also try to play any paused audio elements
+      document.querySelectorAll<HTMLAudioElement>('audio[id^="lk-audio-"]').forEach((el) => {
+        if (el.paused) el.play().catch(() => {});
+      });
+    };
+    document.addEventListener("click", resumeAudio, { once: false });
+    document.addEventListener("keydown", resumeAudio, { once: false });
+
     return () => {
       cancelled = true;
+      document.removeEventListener("click", resumeAudio);
+      document.removeEventListener("keydown", resumeAudio);
       if (systemAudioTrackRef.current) {
         systemAudioTrackRef.current.stop();
         systemAudioTrackRef.current = null;

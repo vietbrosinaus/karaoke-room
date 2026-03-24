@@ -10,6 +10,14 @@ interface UseRoomStateParams {
   onRawMessage?: (msg: ServerMessage) => void;
 }
 
+export interface Reaction {
+  id: string;
+  from: string;
+  fromName: string;
+  emoji: string;
+  timestamp: number;
+}
+
 interface UseRoomStateReturn {
   roomState: RoomState;
   myPeerId: string | null;
@@ -21,8 +29,10 @@ interface UseRoomStateReturn {
   send: (msg: ClientMessage) => void;
   sendChat: (text: string) => void;
   sendStatusUpdate: (status: { isMuted: boolean; isSharingAudio: boolean; currentSong: string | null }) => void;
+  sendReaction: (emoji: string) => void;
   chatMessages: ChatMessage[];
   participantStatus: Record<string, ParticipantStatus>;
+  reactions: Reaction[];
 }
 
 const INITIAL_ROOM_STATE: RoomState = {
@@ -42,6 +52,8 @@ export function useRoomState({
   const [myPeerId, setMyPeerId] = useState<string | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [participantStatus, setParticipantStatus] = useState<Record<string, ParticipantStatus>>({});
+  const [reactions, setReactions] = useState<Reaction[]>([]);
+  const reactionIdRef = useRef(0);
   const hasSentJoinRef = useRef(false);
   const onRawMessageRef = useRef(onRawMessage);
 
@@ -88,6 +100,18 @@ export function useRoomState({
           }
           return updated;
         });
+        break;
+      case "reaction":
+        setReactions((prev) => {
+          const id = `r-${++reactionIdRef.current}`;
+          const next = [...prev, { id, from: msg.from, fromName: msg.fromName, emoji: msg.emoji, timestamp: Date.now() }];
+          // Keep max 20 active reactions
+          return next.length > 20 ? next.slice(-20) : next;
+        });
+        // Auto-remove after 3 seconds
+        setTimeout(() => {
+          setReactions((prev) => prev.slice(1));
+        }, 3000);
         break;
       case "you-joined":
         console.log("[RoomState] My peer ID:", msg.peerId);
@@ -146,6 +170,10 @@ export function useRoomState({
     });
   }, [send]);
 
+  const sendReaction = useCallback((emoji: string) => {
+    send({ type: "reaction", emoji });
+  }, [send]);
+
   const isMyTurn = myPeerId !== null && roomState.currentSingerId === myPeerId;
 
   return {
@@ -159,7 +187,9 @@ export function useRoomState({
     send,
     sendChat,
     sendStatusUpdate,
+    sendReaction,
     chatMessages,
     participantStatus,
+    reactions,
   };
 }

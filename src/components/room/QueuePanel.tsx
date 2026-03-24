@@ -7,6 +7,7 @@ interface QueuePanelProps {
   myPeerId: string | null;
   onJoinQueue: () => void;
   onLeaveQueue: () => void;
+  canSing?: boolean;
 }
 
 export function QueuePanel({
@@ -14,6 +15,7 @@ export function QueuePanel({
   myPeerId,
   onJoinQueue,
   onLeaveQueue,
+  canSing = true,
 }: QueuePanelProps) {
   const isInQueue = myPeerId ? roomState.queue.includes(myPeerId) : false;
   const isSinging = myPeerId !== null && roomState.currentSingerId === myPeerId;
@@ -106,25 +108,39 @@ export function QueuePanel({
           className="mb-4 py-4 text-center text-sm"
           style={{ color: "var(--color-text-secondary)" }}
         >
-          No one in queue
+          Queue is empty — be the first to sing!
         </p>
       )}
 
       {/* Join / Leave button */}
       {!isInQueueOrSinging ? (
-        <button
-          onClick={onJoinQueue}
-          className="w-full cursor-pointer rounded-xl py-3 text-sm font-bold tracking-wide transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
-          style={{
-            fontFamily: "var(--font-display)",
-            background:
-              "linear-gradient(135deg, var(--color-neon-purple), var(--color-neon-pink))",
-            color: "#fff",
-            boxShadow: "0 0 20px rgba(184, 77, 255, 0.2)",
-          }}
-        >
-          Join Queue
-        </button>
+        canSing ? (
+          <button
+            onClick={onJoinQueue}
+            className="w-full cursor-pointer rounded-xl py-3 text-sm font-bold tracking-wide transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+            style={{
+              fontFamily: "var(--font-display)",
+              background:
+                "linear-gradient(135deg, var(--color-neon-purple), var(--color-neon-pink))",
+              color: "#fff",
+              boxShadow: "0 0 20px rgba(184, 77, 255, 0.2)",
+            }}
+          >
+            🎤 I Want to Sing
+          </button>
+        ) : (
+          <div
+            className="rounded-xl py-3 text-center text-xs"
+            style={{
+              fontFamily: "var(--font-display)",
+              color: "var(--color-text-secondary)",
+              background: "var(--color-dark-card)",
+              border: "1px solid var(--color-dark-border)",
+            }}
+          >
+            Singing requires Chrome or Edge on desktop
+          </div>
+        )
       ) : isSinging ? (
         <div
           className="rounded-xl py-3 text-center text-sm font-bold"

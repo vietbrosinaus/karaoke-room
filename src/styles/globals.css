@@ -36,6 +36,12 @@
   to { opacity: 1; transform: translateX(0); }
 }
 
+@keyframes reaction-float {
+  0% { opacity: 1; transform: translateY(0) scale(1); }
+  50% { opacity: 0.8; transform: translateY(-30px) scale(1.2); }
+  100% { opacity: 0; transform: translateY(-60px) scale(0.8); }
+}
+
 body {
   background-color: var(--color-dark-bg);
   color: var(--color-text-primary);
