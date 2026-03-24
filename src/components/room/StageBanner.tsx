@@ -247,8 +247,8 @@ function MixBalance({ onMicGain, onMusicGain }: { onMicGain: (v: number) => void
   const [balance, setBalance] = useState(50);
 
   const handleChange = (raw: number) => {
-    // Snap to center (50) when within 3 units
-    const val = Math.abs(raw - 50) < 3 ? 50 : raw;
+    // Snap to center (50) when within 5 units — stronger magnetic feel
+    const val = Math.abs(raw - 50) <= 5 ? 50 : raw;
     setBalance(val);
     onMusicGain(val / 50);
     onMicGain((100 - val) / 50);
@@ -256,28 +256,39 @@ function MixBalance({ onMicGain, onMusicGain }: { onMicGain: (v: number) => void
 
   const voicePct = Math.round((100 - balance) / 50 * 100);
   const musicPct = Math.round(balance / 50 * 100);
+  const isCenter = balance === 50;
 
   return (
     <div className="space-y-1">
       <div className="flex items-center gap-2">
-        <span className="w-14 text-right text-[10px]" style={{ color: balance <= 50 ? "var(--color-primary)" : "var(--color-text-muted)" }}>
+        <span className="w-16 text-right text-[10px] font-medium" style={{ color: balance <= 50 ? "var(--color-primary)" : "var(--color-text-muted)" }}>
           Voice {voicePct}%
         </span>
         <div className="relative flex-1">
-          {/* Center tick mark */}
-          <div className="pointer-events-none absolute left-1/2 top-1/2 h-3 w-px -translate-x-1/2 -translate-y-1/2" style={{ background: "var(--color-dark-border)" }} />
+          {/* Center guide line */}
+          <div
+            className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+            style={{
+              width: "2px",
+              height: "14px",
+              borderRadius: "1px",
+              background: isCenter ? "var(--color-primary)" : "var(--color-dark-border)",
+              opacity: isCenter ? 1 : 0.5,
+              transition: "all 0.15s ease",
+            }}
+          />
           <input
             type="range" min="0" max="100" value={balance}
             onChange={(e) => handleChange(Number(e.target.value))}
             className="volume-slider w-full"
           />
         </div>
-        <span className="w-14 text-[10px]" style={{ color: balance >= 50 ? "var(--color-accent)" : "var(--color-text-muted)" }}>
+        <span className="w-16 text-[10px] font-medium" style={{ color: balance >= 50 ? "var(--color-accent)" : "var(--color-text-muted)" }}>
           {musicPct}% Music
         </span>
       </div>
-      {balance === 50 && (
-        <p className="text-center text-[9px]" style={{ color: "var(--color-text-muted)" }}>Balanced</p>
+      {isCenter && (
+        <p className="text-center text-[9px] font-medium" style={{ color: "var(--color-primary)" }}>Balanced</p>
       )}
     </div>
   );
