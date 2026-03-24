@@ -69,6 +69,8 @@ export function useLiveKit({
   const micCheckAbortRef = useRef<(() => void) | null>(null);
   const micModeRef = useRef<MicMode>(micMode);
   micModeRef.current = micMode;
+  const playerNameRef = useRef(playerName);
+  playerNameRef.current = playerName;
 
   // Ref mirrors — used in callbacks to avoid stale closures
   const isMicEnabledRef = useRef(isMicEnabled);
@@ -89,7 +91,7 @@ export function useLiveKit({
   // --- Connect to LiveKit room ---
 
   useEffect(() => {
-    if (!roomCode || !playerName) return;
+    if (!roomCode || !playerNameRef.current) return;
 
     let cancelled = false;
 
@@ -213,7 +215,7 @@ export function useLiveKit({
     const connect = async (attempt = 0) => {
       try {
         const res = await fetch(
-          `/api/livekit-token?room=${encodeURIComponent(roomCode)}&name=${encodeURIComponent(playerName)}`,
+          `/api/livekit-token?room=${encodeURIComponent(roomCode)}&name=${encodeURIComponent(playerNameRef.current)}`,
         );
         if (!res.ok) {
           const text = await res.text();
@@ -311,10 +313,11 @@ export function useLiveKit({
       setIsMicEnabled(false);
       setIsSharing(false);
     };
+    // playerName uses a ref — name changes only go through PartyKit, not LiveKit.
     // micMode is NOT included — handled by a separate effect that republishes the mic track.
     // selectedInputDeviceId/selectedOutputDeviceId are NOT included — handled by separate effects.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomCode, playerName]);
+  }, [roomCode]);
 
   // --- Switch input device without reconnecting ---
 
