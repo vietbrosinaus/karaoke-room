@@ -173,7 +173,12 @@ export function useLiveKit({
     // Active speakers — highlight who is talking
     room.on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
       if (cancelled) return;
-      setActiveSpeakers(new Set(speakers.map((p) => p.identity)));
+      // Include local participant if they're speaking
+      const identities = new Set(speakers.map((p) => p.identity));
+      if (room.localParticipant.isSpeaking) {
+        identities.add(room.localParticipant.identity);
+      }
+      setActiveSpeakers(identities);
     });
 
     // Connection state — including reconnect awareness
