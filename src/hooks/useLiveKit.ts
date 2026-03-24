@@ -351,11 +351,11 @@ export function useLiveKit({
     setIsMonitoring((prev) => !prev);
   }, []);
 
-  // Effect: attach/detach local mic to a hidden <audio> for monitoring
+  // Effect: attach/detach local mic to a hidden <audio> for monitoring.
+  // Also depends on isSharing — when bypass activates, the mic track changes.
   useEffect(() => {
     const room = roomRef.current;
     if (!isMonitoring || !isMicEnabled || !room) {
-      // Stop monitoring
       if (monitorAudioRef.current) {
         monitorAudioRef.current.srcObject = null;
         monitorAudioRef.current.remove();
@@ -365,9 +365,16 @@ export function useLiveKit({
       return;
     }
 
-    // Find the local mic track
-    const micPub = room.localParticipant.getTrackPublication(Track.Source.Microphone);
-    const mediaTrack = micPub?.track?.mediaStreamTrack;
+    // When bypass is active, monitor the raw bypass stream directly
+    // (the managed mic track is dead during bypass)
+    let mediaTrack: MediaStreamTrack | undefined;
+    if (bypassRawStreamRef.current) {
+      mediaTrack = bypassRawStreamRef.current.getAudioTracks()[0];
+    } else {
+      const micPub = room.localParticipant.getTrackPublication(Track.Source.Microphone);
+      mediaTrack = micPub?.track?.mediaStreamTrack;
+    }
+
     if (!mediaTrack) {
       console.log("[LiveKit] No mic track to monitor");
       return;
@@ -384,12 +391,20 @@ export function useLiveKit({
     monitorAudioRef.current = audio;
     console.log("[LiveKit] Mic monitor ON");
 
+    // Re-play if Chrome suspends the audio element
+    const keepAlive = setInterval(() => {
+      if (audio.paused) {
+        audio.play().catch(() => {});
+      }
+    }, 5000);
+
     return () => {
+      clearInterval(keepAlive);
       audio.srcObject = null;
       audio.remove();
       monitorAudioRef.current = null;
     };
-  }, [isMonitoring, isMicEnabled]);
+  }, [isMonitoring, isMicEnabled, isSharing]);
 
   // --- Microphone ---
 
