@@ -18,9 +18,10 @@ import { ReactionBar } from "./ReactionBar";
 interface RoomViewProps {
   roomCode: string;
   playerName: string;
+  onRename?: (newName: string) => void;
 }
 
-export function RoomView({ roomCode, playerName }: RoomViewProps) {
+export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
   const router = useRouter();
   const [browser, setBrowser] = useState<BrowserInfo>({ name: "Unknown", isChromium: true, canSing: true, isMobile: false });
   useEffect(() => { setBrowser(detectBrowser()); }, []);
@@ -176,6 +177,7 @@ export function RoomView({ roomCode, playerName }: RoomViewProps) {
                 ? "Connecting to room..."
                 : "Connecting to audio..."}
           </div>
+          <EditableName name={playerName} onRename={onRename} />
           <button
             onClick={() => router.push("/")}
             className="cursor-pointer rounded-lg border px-3 py-1.5 text-xs font-medium transition-all duration-200 hover:scale-105 active:scale-95"
@@ -299,5 +301,58 @@ export function RoomView({ roomCode, playerName }: RoomViewProps) {
         sessionStartTime={sessionStartTime}
       />
     </main>
+  );
+}
+
+function EditableName({ name, onRename }: { name: string; onRename?: (n: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(name);
+
+  if (!onRename) {
+    return (
+      <span className="text-xs" style={{ color: "var(--color-text-secondary)" }}>
+        {name}
+      </span>
+    );
+  }
+
+  if (!editing) {
+    return (
+      <button
+        onClick={() => { setDraft(name); setEditing(true); }}
+        className="cursor-pointer rounded-md px-2 py-1 text-xs transition-colors hover:bg-[var(--color-dark-card)]"
+        style={{ color: "var(--color-text-primary)" }}
+        title="Click to change your name"
+      >
+        {name}
+      </button>
+    );
+  }
+
+  const submit = () => {
+    const trimmed = draft.trim();
+    if (trimmed && trimmed !== name) {
+      onRename(trimmed);
+    }
+    setEditing(false);
+  };
+
+  return (
+    <input
+      autoFocus
+      value={draft}
+      onChange={(e) => setDraft(e.target.value.slice(0, 20))}
+      onBlur={submit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") submit();
+        if (e.key === "Escape") setEditing(false);
+      }}
+      className="w-24 rounded-md border px-2 py-1 text-xs outline-none"
+      style={{
+        background: "var(--color-dark-card)",
+        borderColor: "var(--color-primary)",
+        color: "var(--color-text-primary)",
+      }}
+    />
   );
 }
