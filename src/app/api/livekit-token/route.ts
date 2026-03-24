@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { AccessToken, TrackSource } from "livekit-server-sdk";
+import { AccessToken, RoomConfiguration, TrackSource } from "livekit-server-sdk";
 
 export async function GET(req: NextRequest) {
   try {
@@ -31,9 +31,17 @@ export async function GET(req: NextRequest) {
     at.addGrant({
       room,
       roomJoin: true,
+      roomCreate: true,
       canPublish: true,
       canSubscribe: true,
       canPublishSources: [TrackSource.MICROPHONE, TrackSource.SCREEN_SHARE_AUDIO],
+    });
+
+    // Auto-destroy empty rooms to stop burning LiveKit quota
+    at.roomConfig = new RoomConfiguration({
+      emptyTimeout: 30,      // destroy room 30s after last participant leaves
+      departureTimeout: 20,  // grace period for reconnections
+      maxParticipants: 10,
     });
 
     const token = await at.toJwt();

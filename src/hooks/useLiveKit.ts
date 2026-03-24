@@ -38,6 +38,7 @@ interface UseLiveKitReturn {
   stopSharing: () => void;
   sharingError: string | null;
   remoteParticipantCount: number;
+  currentSong: string | null;
 }
 
 export function useLiveKit({
@@ -54,6 +55,7 @@ export function useLiveKit({
   const [isSharing, setIsSharing] = useState(false);
   const [sharingError, setSharingError] = useState<string | null>(null);
   const [remoteParticipantCount, setRemoteParticipantCount] = useState(0);
+  const [currentSong, setCurrentSong] = useState<string | null>(null);
 
   const [isMonitoring, setIsMonitoring] = useState(false);
 
@@ -104,9 +106,11 @@ export function useLiveKit({
         participant: RemoteParticipant,
       ) => {
         if (track.kind !== Track.Kind.Audio) return;
-        console.log("[LiveKit] Subscribed to audio from", participant.identity, "source:", track.source);
+        const isMusic = track.source === Track.Source.ScreenShareAudio;
+        console.log("[LiveKit] Subscribed to audio from", participant.identity, "source:", track.source, isMusic ? "(music)" : "(mic)");
         const el = track.attach();
         el.id = `lk-audio-${participant.identity}-${track.sid}`;
+        el.dataset.lkType = isMusic ? "music" : "mic";
         el.style.display = "none";
         document.body.appendChild(el);
       },
@@ -319,6 +323,26 @@ export function useLiveKit({
         return;
       }
 
+      // Detect song name from tab title in track label
+      const trackLabel = audioTrack.label;
+      console.log("[LiveKit] System audio track label:", trackLabel);
+      let detectedSong: string | null = null;
+      if (trackLabel) {
+        let songName = trackLabel;
+        // Strip "Tab: " prefix if present
+        if (songName.startsWith("Tab: ")) {
+          songName = songName.slice(5);
+        }
+        // Strip " - YouTube" suffix if present
+        if (songName.endsWith(" - YouTube")) {
+          songName = songName.slice(0, -10);
+        }
+        if (songName.trim()) {
+          detectedSong = songName.trim();
+        }
+      }
+      setCurrentSong(detectedSong);
+
       console.log("[LiveKit] Got system audio track, publishing...");
 
       const pub = await room.localParticipant.publishTrack(audioTrack, {
@@ -344,6 +368,7 @@ export function useLiveKit({
         systemAudioTrackRef.current = null;
         systemAudioPubRef.current = null;
         setIsSharing(false);
+        setCurrentSong(null);
       };
     } catch (err) {
       if (err instanceof Error && err.name === "NotAllowedError") {
@@ -373,6 +398,7 @@ export function useLiveKit({
     systemAudioPubRef.current = null;
     setIsSharing(false);
     setSharingError(null);
+    setCurrentSong(null);
   }, []);
 
   // Auto-stop sharing when not my turn
@@ -396,5 +422,6 @@ export function useLiveKit({
     stopSharing,
     sharingError,
     remoteParticipantCount,
+    currentSong,
   };
 }

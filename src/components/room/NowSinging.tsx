@@ -11,6 +11,7 @@ interface NowSingingProps {
   onStopSharing: () => void;
   onFinishSinging: () => void;
   audioError: string | null;
+  singerSongName: string | null;
 }
 
 export function NowSinging({
@@ -22,6 +23,7 @@ export function NowSinging({
   onStopSharing,
   onFinishSinging,
   audioError,
+  singerSongName,
 }: NowSingingProps) {
   const currentSinger = roomState.participants.find(
     (p) => p.id === roomState.currentSingerId,
@@ -148,16 +150,31 @@ export function NowSinging({
           </div>
 
           {isSharing && (
-            <div
-              className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm"
-              style={{
-                background: "rgba(0, 240, 255, 0.08)",
-                color: "var(--color-neon-cyan)",
-                animation: "neon-pulse 2s ease-in-out infinite",
-              }}
-            >
-              <span className="h-2 w-2 rounded-full" style={{ background: "var(--color-neon-cyan)" }} />
-              Sharing system audio to room
+            <div className="flex flex-col items-center gap-2">
+              {singerSongName && (
+                <p
+                  className="max-w-md truncate text-lg"
+                  style={{
+                    fontFamily: "var(--font-display)",
+                    color: "var(--color-neon-purple)",
+                    textShadow: "0 0 12px rgba(168, 85, 247, 0.4)",
+                  }}
+                  title={singerSongName}
+                >
+                  ♫ {singerSongName}
+                </p>
+              )}
+              <div
+                className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm"
+                style={{
+                  background: "rgba(0, 240, 255, 0.08)",
+                  color: "var(--color-neon-cyan)",
+                  animation: "neon-pulse 2s ease-in-out infinite",
+                }}
+              >
+                <span className="h-2 w-2 rounded-full" style={{ background: "var(--color-neon-cyan)" }} />
+                Sharing system audio to room
+              </div>
             </div>
           )}
 
@@ -189,6 +206,19 @@ export function NowSinging({
           >
             🎤 {currentSinger?.name ?? "Unknown"}
           </h2>
+          {singerSongName && (
+            <p
+              className="max-w-md truncate text-center text-lg"
+              style={{
+                fontFamily: "var(--font-display)",
+                color: "var(--color-neon-purple)",
+                textShadow: "0 0 12px rgba(168, 85, 247, 0.4)",
+              }}
+              title={singerSongName}
+            >
+              ♫ {singerSongName}
+            </p>
+          )}
           <div
             className="mt-2 flex items-center gap-2 text-sm"
             style={{ color: "var(--color-neon-cyan)" }}

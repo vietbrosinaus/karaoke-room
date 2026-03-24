@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePartySocket } from "./usePartySocket";
-import type { ClientMessage, RoomState, ServerMessage } from "~/types/room";
+import type { ChatMessage, ClientMessage, ParticipantStatus, RoomState, ServerMessage } from "~/types/room";
 
 interface UseRoomStateParams {
   roomCode: string;
@@ -19,12 +19,18 @@ interface UseRoomStateReturn {
   finishSinging: () => void;
   isMyTurn: boolean;
   send: (msg: ClientMessage) => void;
+  sendChat: (text: string) => void;
+  sendStatusUpdate: (status: { isMuted: boolean; isSharingAudio: boolean; currentSong: string | null }) => void;
+  chatMessages: ChatMessage[];
+  participantStatus: Record<string, ParticipantStatus>;
 }
 
 const INITIAL_ROOM_STATE: RoomState = {
   participants: [],
   queue: [],
   currentSingerId: null,
+  chatMessages: [],
+  participantStatus: {},
 };
 
 export function useRoomState({
@@ -34,12 +40,16 @@ export function useRoomState({
 }: UseRoomStateParams): UseRoomStateReturn {
   const [roomState, setRoomState] = useState<RoomState>(INITIAL_ROOM_STATE);
   const [myPeerId, setMyPeerId] = useState<string | null>(null);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [participantStatus, setParticipantStatus] = useState<Record<string, ParticipantStatus>>({});
   const hasSentJoinRef = useRef(false);
   const onRawMessageRef = useRef(onRawMessage);
 
   useEffect(() => {
     onRawMessageRef.current = onRawMessage;
   }, [onRawMessage]);
+
+  const hasReceivedInitialStateRef = useRef(false);
 
   const onMessage = useCallback((msg: ServerMessage) => {
     console.log("[RoomState] Received message:", msg.type);
@@ -49,6 +59,35 @@ export function useRoomState({
     switch (msg.type) {
       case "room-state":
         setRoomState(msg.state);
+        setParticipantStatus(msg.state.participantStatus);
+        // Only sync chat from room-state on first load (catch-up).
+        // After that, chat arrives via individual "chat" events.
+        if (!hasReceivedInitialStateRef.current) {
+          setChatMessages(msg.state.chatMessages);
+          hasReceivedInitialStateRef.current = true;
+        }
+        break;
+      case "participant-status":
+        setParticipantStatus((prev) => ({
+          ...prev,
+          [msg.peerId]: msg.status,
+        }));
+        break;
+      case "peer-left":
+        setParticipantStatus((prev) => {
+          const next = { ...prev };
+          delete next[msg.peerId];
+          return next;
+        });
+        break;
+      case "chat":
+        setChatMessages((prev) => {
+          const updated = [...prev, { from: msg.from, fromName: msg.fromName, text: msg.text, timestamp: msg.timestamp }];
+          if (updated.length > 100) {
+            return updated.slice(-100);
+          }
+          return updated;
+        });
         break;
       case "you-joined":
         console.log("[RoomState] My peer ID:", msg.peerId);
@@ -57,7 +96,6 @@ export function useRoomState({
       case "error":
         console.error("[RoomState] Server error:", msg.message);
         break;
-      // peer-joined, peer-left, signal are forwarded via onRawMessage
       default:
         break;
     }
@@ -73,10 +111,11 @@ export function useRoomState({
     }
   }, [isConnected, playerName, send]);
 
-  // Reset join flag if disconnected
+  // Reset flags if disconnected
   useEffect(() => {
     if (!isConnected) {
       hasSentJoinRef.current = false;
+      hasReceivedInitialStateRef.current = false;
     }
   }, [isConnected]);
 
@@ -92,6 +131,21 @@ export function useRoomState({
     send({ type: "finish-singing" });
   }, [send]);
 
+  const sendChat = useCallback((text: string) => {
+    if (text.trim()) {
+      send({ type: "chat", text });
+    }
+  }, [send]);
+
+  const sendStatusUpdate = useCallback((status: { isMuted: boolean; isSharingAudio: boolean; currentSong: string | null }) => {
+    send({
+      type: "status-update",
+      isMuted: status.isMuted,
+      isSharingAudio: status.isSharingAudio,
+      currentSong: status.currentSong,
+    });
+  }, [send]);
+
   const isMyTurn = myPeerId !== null && roomState.currentSingerId === myPeerId;
 
   return {
@@ -103,5 +157,9 @@ export function useRoomState({
     finishSinging,
     isMyTurn,
     send,
+    sendChat,
+    sendStatusUpdate,
+    chatMessages,
+    participantStatus,
   };
 }

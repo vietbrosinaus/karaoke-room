@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRoomState } from "~/hooks/useRoomState";
 import { useLiveKit } from "~/hooks/useLiveKit";
 import { useAudioDevices } from "~/hooks/useAudioDevices";
@@ -10,6 +10,7 @@ import { ParticipantList } from "./ParticipantList";
 import { NowSinging } from "./NowSinging";
 import { InviteCode } from "./InviteCode";
 import { StatusBar } from "./StatusBar";
+import { ChatPanel } from "./ChatPanel";
 
 interface RoomViewProps {
   roomCode: string;
@@ -25,6 +26,10 @@ export function RoomView({ roomCode, playerName }: RoomViewProps) {
     leaveQueue,
     finishSinging,
     isMyTurn,
+    sendChat,
+    sendStatusUpdate,
+    chatMessages,
+    participantStatus,
   } = useRoomState({ roomCode, playerName });
 
   const {
@@ -53,6 +58,7 @@ export function RoomView({ roomCode, playerName }: RoomViewProps) {
     stopSharing,
     sharingError,
     remoteParticipantCount,
+    currentSong,
   } = useLiveKit({
     roomCode,
     playerName,
@@ -63,6 +69,51 @@ export function RoomView({ roomCode, playerName }: RoomViewProps) {
   });
 
   const isConnected = isPartyConnected && isLiveKitConnected;
+
+  // Separate volume controls: music (singer's system audio) vs voices (mics)
+  const [musicVolume, setMusicVolume] = useState(1);
+  const [voiceVolume, setVoiceVolume] = useState(1);
+
+  const applyVolumes = useCallback((music: number, voice: number) => {
+    document.querySelectorAll<HTMLAudioElement>('audio[id^="lk-audio-"]').forEach((el) => {
+      el.volume = el.dataset.lkType === "music" ? music : voice;
+    });
+  }, []);
+
+  const handleMusicVolumeChange = useCallback((vol: number) => {
+    setMusicVolume(vol);
+    applyVolumes(vol, voiceVolume);
+  }, [voiceVolume, applyVolumes]);
+
+  const handleVoiceVolumeChange = useCallback((vol: number) => {
+    setVoiceVolume(vol);
+    applyVolumes(musicVolume, vol);
+  }, [musicVolume, applyVolumes]);
+
+  // Apply correct volume to new remote audio elements as they appear
+  useEffect(() => {
+    const observer = new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        for (const node of m.addedNodes) {
+          if (node instanceof HTMLAudioElement && node.id?.startsWith("lk-audio-")) {
+            node.volume = node.dataset.lkType === "music" ? musicVolume : voiceVolume;
+          }
+        }
+      }
+    });
+    observer.observe(document.body, { childList: true });
+    return () => observer.disconnect();
+  }, [musicVolume, voiceVolume]);
+
+  // Send status updates when mic/sharing/song changes
+  useEffect(() => {
+    if (!isPartyConnected) return;
+    sendStatusUpdate({
+      isMuted: !isMicEnabled,
+      isSharingAudio: isSharing,
+      currentSong,
+    });
+  }, [isMicEnabled, isSharing, currentSong, isPartyConnected, sendStatusUpdate]);
 
   return (
     <main className="relative flex min-h-dvh flex-col overflow-hidden">
@@ -148,6 +199,11 @@ export function RoomView({ roomCode, playerName }: RoomViewProps) {
             onStopSharing={stopSharing}
             onFinishSinging={finishSinging}
             audioError={sharingError}
+            singerSongName={
+              roomState.currentSingerId
+                ? participantStatus[roomState.currentSingerId]?.currentSong ?? null
+                : null
+            }
           />
 
           <AudioControls
@@ -163,6 +219,10 @@ export function RoomView({ roomCode, playerName }: RoomViewProps) {
             onOutputChange={setSelectedOutputId}
             micMode={micMode}
             onMicModeChange={setMicMode}
+            musicVolume={musicVolume}
+            onMusicVolumeChange={handleMusicVolumeChange}
+            voiceVolume={voiceVolume}
+            onVoiceVolumeChange={handleVoiceVolumeChange}
           />
         </div>
 
@@ -177,6 +237,12 @@ export function RoomView({ roomCode, playerName }: RoomViewProps) {
           <ParticipantList
             participants={roomState.participants}
             currentSingerId={roomState.currentSingerId}
+            myPeerId={myPeerId}
+            participantStatus={participantStatus}
+          />
+          <ChatPanel
+            messages={chatMessages}
+            onSend={sendChat}
             myPeerId={myPeerId}
           />
         </div>
