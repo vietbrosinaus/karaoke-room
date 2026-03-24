@@ -8,6 +8,7 @@ interface PeoplePanelProps {
   myPeerId: string | null;
   onJoinQueue: () => void;
   onLeaveQueue: () => void;
+  onSetSongIntent?: (song: string) => void;
   canSing: boolean;
   participantStatus: Record<string, ParticipantStatus>;
   activeSpeakers: Set<string>;
@@ -20,6 +21,7 @@ export function PeoplePanel({
   myPeerId,
   onJoinQueue,
   onLeaveQueue,
+  onSetSongIntent,
   canSing,
   participantStatus,
   activeSpeakers,
@@ -28,6 +30,8 @@ export function PeoplePanel({
 }: PeoplePanelProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [tab, setTab] = useState<"people" | "queue">("people");
+  const [showJoinModal, setShowJoinModal] = useState(false);
+  const [songIntent, setSongIntent] = useState("");
 
   const isInQueue = myPeerId ? roomState.queue.includes(myPeerId) : false;
   const isSinging = myPeerId !== null && roomState.currentSingerId === myPeerId;
@@ -252,7 +256,7 @@ export function PeoplePanel({
         {!isInQueueOrSinging ? (
           canSing ? (
             <button
-              onClick={onJoinQueue}
+              onClick={() => setShowJoinModal(true)}
               className="w-full cursor-pointer rounded-lg py-2.5 text-xs font-bold transition-all hover:brightness-110 active:scale-[0.98]"
               style={{ fontFamily: "var(--font-display)", background: "var(--color-primary)", color: "#fff" }}
             >
@@ -280,6 +284,77 @@ export function PeoplePanel({
           </button>
         )}
       </div>
+
+      {/* Join queue modal — ask what they'll sing */}
+      {showJoinModal && (
+        <>
+          <div
+            className="fixed inset-0 z-40"
+            style={{ background: "rgba(0,0,0,0.6)" }}
+            onClick={() => setShowJoinModal(false)}
+          />
+          <div
+            className="fixed left-1/2 top-1/2 z-50 w-80 -translate-x-1/2 -translate-y-1/2 rounded-xl border p-5"
+            style={{
+              background: "var(--color-dark-surface)",
+              borderColor: "var(--color-dark-border)",
+              animation: "fade-in 0.15s ease-out",
+            }}
+          >
+            <h3
+              className="mb-1 text-sm font-bold"
+              style={{ fontFamily: "var(--font-display)", color: "var(--color-text-primary)" }}
+            >
+              What will you sing?
+            </h3>
+            <p className="mb-4 text-xs" style={{ color: "var(--color-text-muted)" }}>
+              Let everyone know, or skip if you&apos;re not sure yet.
+            </p>
+            <input
+              autoFocus
+              type="text"
+              value={songIntent}
+              onChange={(e) => setSongIntent(e.target.value.slice(0, 60))}
+              placeholder="Song name..."
+              className="mb-3 w-full rounded-lg border px-3 py-2.5 text-sm outline-none transition-all focus:border-[var(--color-primary)]"
+              style={{ background: "var(--color-dark-card)", borderColor: "var(--color-dark-border)", color: "var(--color-text-primary)" }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  if (songIntent.trim()) onSetSongIntent?.(songIntent.trim());
+                  onJoinQueue();
+                  setShowJoinModal(false);
+                  setSongIntent("");
+                }
+              }}
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  if (songIntent.trim()) onSetSongIntent?.(songIntent.trim());
+                  onJoinQueue();
+                  setShowJoinModal(false);
+                  setSongIntent("");
+                }}
+                className="flex-1 cursor-pointer rounded-lg py-2.5 text-xs font-bold transition-all hover:brightness-110"
+                style={{ fontFamily: "var(--font-display)", background: "var(--color-primary)", color: "#fff" }}
+              >
+                {songIntent.trim() ? "Join Queue" : "Join Queue"}
+              </button>
+              <button
+                onClick={() => {
+                  onJoinQueue();
+                  setShowJoinModal(false);
+                  setSongIntent("");
+                }}
+                className="cursor-pointer rounded-lg border px-4 py-2.5 text-xs font-medium transition-all hover:brightness-110"
+                style={{ borderColor: "var(--color-dark-border)", color: "var(--color-text-muted)" }}
+              >
+                Skip
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

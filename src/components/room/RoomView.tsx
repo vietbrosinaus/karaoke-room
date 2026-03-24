@@ -328,6 +328,15 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
             myPeerId={myPeerId}
             onJoinQueue={joinQueue}
             onLeaveQueue={leaveQueue}
+            onSetSongIntent={(song) => {
+              // Broadcast song intent via status update
+              sendStatusUpdate({
+                isMuted: !isMicEnabled,
+                isSharingAudio: isSharing,
+                currentSong: song,
+                browser: browser.name + (browser.isMobile ? " (Mobile)" : ""),
+              });
+            }}
             canSing={browser.canSing}
             participantStatus={participantStatus}
             activeSpeakers={activeSpeakers}

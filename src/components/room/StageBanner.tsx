@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { RoomState } from "~/types/room";
 
 interface StageBannerProps {
@@ -184,13 +184,13 @@ export function StageBanner({
             </div>
           </div>
 
-          {/* Song name — editable if auto-detect failed */}
-          {!singerSongName && (
-            <SongNameInput onSet={(name) => {
-              // This sets it via a custom event that RoomView can listen to
+          {/* Song name — always editable */}
+          <SongNameInput
+            initial={singerSongName ?? ""}
+            onSet={(name) => {
               window.dispatchEvent(new CustomEvent("karaoke-set-song", { detail: name }));
-            }} />
-          )}
+            }}
+          />
 
           {/* Mix balance */}
           {onMixMicGain && onMixMusicGain && (
@@ -219,38 +219,46 @@ export function StageBanner({
   );
 }
 
-function SongNameInput({ onSet }: { onSet: (name: string) => void }) {
-  const [value, setValue] = useState("");
-  const [submitted, setSubmitted] = useState(false);
+function SongNameInput({ initial, onSet }: { initial: string; onSet: (name: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(initial);
 
-  if (submitted) return null;
+  // Sync if external value changes
+  useEffect(() => { setValue(initial); }, [initial]);
+
+  const submit = () => {
+    if (value.trim()) onSet(value.trim());
+    setEditing(false);
+  };
+
+  if (!editing) {
+    return (
+      <button
+        onClick={() => setEditing(true)}
+        className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-1.5 text-left text-xs transition-all hover:bg-[var(--color-dark-card)]"
+        style={{ color: value ? "var(--color-accent)" : "var(--color-text-muted)" }}
+      >
+        <span className="truncate flex-1">{value || "What are you singing? (click to set)"}</span>
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.5, flexShrink: 0 }}>
+          <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+        </svg>
+      </button>
+    );
+  }
 
   return (
     <div className="flex items-center gap-2">
       <input
+        autoFocus
         type="text"
         value={value}
-        onChange={(e) => setValue(e.target.value)}
-        placeholder="What are you singing?"
-        maxLength={60}
+        onChange={(e) => setValue(e.target.value.slice(0, 60))}
+        placeholder="Song name..."
         className="flex-1 rounded-lg border px-3 py-1.5 text-xs outline-none transition-all focus:border-[var(--color-primary)]"
         style={{ background: "var(--color-dark-card)", borderColor: "var(--color-dark-border)", color: "var(--color-text-primary)" }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && value.trim()) {
-            onSet(value.trim());
-            setSubmitted(true);
-          }
-        }}
+        onBlur={submit}
+        onKeyDown={(e) => { if (e.key === "Enter") submit(); if (e.key === "Escape") setEditing(false); }}
       />
-      {value.trim() && (
-        <button
-          onClick={() => { onSet(value.trim()); setSubmitted(true); }}
-          className="cursor-pointer rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all hover:brightness-110"
-          style={{ background: "var(--color-primary)", color: "#fff" }}
-        >
-          Set
-        </button>
-      )}
     </div>
   );
 }
