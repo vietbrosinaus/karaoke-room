@@ -53,7 +53,7 @@ export function ChatPanel({ messages, onSend, myPeerId }: ChatPanelProps) {
 
   return (
     <div
-      className="flex flex-col rounded-2xl border"
+      className="flex h-full flex-col rounded-2xl border"
       style={{
         background: "var(--color-dark-surface)",
         borderColor: "var(--color-dark-border)",

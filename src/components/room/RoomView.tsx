@@ -6,14 +6,14 @@ import { useRoomState } from "~/hooks/useRoomState";
 import { useLiveKit } from "~/hooks/useLiveKit";
 import { useAudioDevices } from "~/hooks/useAudioDevices";
 import { detectBrowser, type BrowserInfo } from "~/lib/browser";
-import { QueuePanel } from "./QueuePanel";
-import { AudioControls } from "./AudioControls";
-import { ParticipantList } from "./ParticipantList";
-import { NowSinging } from "./NowSinging";
+import { StageBanner } from "./StageBanner";
+import { Toolbar } from "./Toolbar";
+import { PeoplePanel } from "./PeoplePanel";
+import { ChatPanel } from "./ChatPanel";
 import { InviteCode } from "./InviteCode";
 import { StatusBar } from "./StatusBar";
-import { ChatPanel } from "./ChatPanel";
-import { ReactionBar } from "./ReactionBar";
+import { SettingsDrawer } from "./SettingsDrawer";
+import type { Reaction } from "~/hooks/useRoomState";
 
 interface RoomViewProps {
   roomCode: string;
@@ -25,6 +25,8 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
   const router = useRouter();
   const [browser, setBrowser] = useState<BrowserInfo>({ name: "Unknown", isChromium: true, canSing: true, isMobile: false });
   useEffect(() => { setBrowser(detectBrowser()); }, []);
+
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const {
     roomState,
@@ -84,41 +86,19 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
   const isConnected = isPartyConnected && isLiveKitConnected;
 
   // Volume controls
-  const [musicVolume, setMusicVolume] = useState(1);    // music (system audio)
-  const [voiceVolume, setVoiceVolume] = useState(1);    // all voices (master)
-  const [personVolumes, setPersonVolumes] = useState<Record<string, number>>({}); // per-person
+  const [voiceVolume, setVoiceVolume] = useState(1);
+  const [personVolumes, setPersonVolumes] = useState<Record<string, number>>({});
 
-  // Apply volumes to all audio elements
   const applyAllVolumes = useCallback(() => {
     document.querySelectorAll<HTMLAudioElement>('audio[id^="lk-audio-"]').forEach((el) => {
-      if (el.dataset.lkType === "music") {
-        el.volume = musicVolume;
-      } else {
-        const identity = el.dataset.lkIdentity ?? "";
-        const personVol = personVolumes[identity] ?? 1;
-        el.volume = voiceVolume * personVol;
-      }
+      const identity = el.dataset.lkIdentity ?? "";
+      const personVol = personVolumes[identity] ?? 1;
+      el.volume = voiceVolume * personVol;
     });
-  }, [musicVolume, voiceVolume, personVolumes]);
+  }, [voiceVolume, personVolumes]);
 
-  const handleMusicVolumeChange = useCallback((vol: number) => {
-    setMusicVolume(vol);
-  }, []);
+  useEffect(() => { applyAllVolumes(); }, [applyAllVolumes]);
 
-  const handleVoiceVolumeChange = useCallback((vol: number) => {
-    setVoiceVolume(vol);
-  }, []);
-
-  const handlePersonVolumeChange = useCallback((identity: string, vol: number) => {
-    setPersonVolumes((prev) => ({ ...prev, [identity]: vol }));
-  }, []);
-
-  // Re-apply whenever any volume changes
-  useEffect(() => {
-    applyAllVolumes();
-  }, [applyAllVolumes]);
-
-  // Apply correct volume to new remote audio elements as they appear
   useEffect(() => {
     const observer = new MutationObserver((mutations) => {
       for (const m of mutations) {
@@ -133,7 +113,11 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
     return () => observer.disconnect();
   }, [applyAllVolumes]);
 
-  // Send status updates when mic/sharing/song changes
+  const handlePersonVolumeChange = useCallback((identity: string, vol: number) => {
+    setPersonVolumes((prev) => ({ ...prev, [identity]: vol }));
+  }, []);
+
+  // Send status updates
   useEffect(() => {
     if (!isPartyConnected) return;
     sendStatusUpdate({
@@ -146,23 +130,20 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
 
   return (
     <main className="relative flex h-dvh flex-col overflow-hidden">
-      {/* Subtle ambient background */}
+      {/* Ambient background */}
       <div
         className="pointer-events-none fixed inset-0 opacity-[0.04]"
-        style={{
-          background:
-            "radial-gradient(ellipse at 20% 50%, var(--color-primary), transparent 50%), radial-gradient(ellipse at 80% 50%, var(--color-accent), transparent 50%)",
-        }}
+        style={{ background: "radial-gradient(ellipse at 20% 50%, var(--color-primary), transparent 50%), radial-gradient(ellipse at 80% 50%, var(--color-accent), transparent 50%)" }}
       />
 
       {/* Header */}
       <header
-        className="relative z-10 flex items-center justify-between border-b px-6 py-4"
+        className="relative z-10 flex items-center justify-between border-b px-4 py-3 lg:px-6"
         style={{ borderColor: "var(--color-dark-border)" }}
       >
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <h1
-            className="text-2xl font-extrabold"
+            className="text-lg font-extrabold lg:text-xl"
             style={{
               fontFamily: "var(--font-display)",
               background: "linear-gradient(135deg, var(--color-primary), var(--color-accent))",
@@ -175,37 +156,38 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
           <InviteCode code={roomCode} />
         </div>
 
-        <div className="flex items-center gap-3">
-          <div
-            className="flex items-center gap-2 text-sm"
-            style={{ color: "var(--color-text-secondary)" }}
-          >
+        <div className="flex items-center gap-2">
+          {/* Connection status */}
+          <div className="flex items-center gap-1.5 text-xs" style={{ color: "var(--color-text-muted)" }}>
             <div
-              className="h-2 w-2 rounded-full"
-              style={{
-                background: isConnected
-                  ? "var(--color-success)"
-                  : "var(--color-accent)",
-              }}
+              className="h-1.5 w-1.5 rounded-full"
+              style={{ background: isConnected ? "var(--color-success)" : "var(--color-accent)" }}
             />
-            {isConnected
-              ? "Connected"
-              : isLiveKitConnected
-                ? "Connecting to room..."
-                : "Connecting to audio..."}
+            <span className="hidden sm:inline">
+              {isConnected ? "Connected" : "Connecting..."}
+            </span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>as</span>
-            <EditableName name={playerName} onRename={onRename} />
-          </div>
+
+          {/* Name */}
+          <EditableName name={playerName} onRename={onRename} />
+
+          {/* Settings */}
+          <button
+            onClick={() => setSettingsOpen(true)}
+            className="cursor-pointer rounded-lg border p-2 transition-all hover:border-[var(--color-primary)] hover:scale-105"
+            style={{ borderColor: "var(--color-dark-border)", color: "var(--color-text-muted)" }}
+            title="Settings"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+          </button>
+
+          {/* Leave */}
           <button
             onClick={() => router.push("/")}
-            className="cursor-pointer rounded-lg border px-3 py-1.5 text-xs font-medium transition-all duration-200 hover:scale-105 active:scale-95"
-            style={{
-              fontFamily: "var(--font-display)",
-              borderColor: "var(--color-dark-border)",
-              color: "var(--color-text-secondary)",
-            }}
+            className="cursor-pointer rounded-lg border px-3 py-1.5 text-xs font-medium transition-all hover:scale-105 active:scale-95"
+            style={{ fontFamily: "var(--font-display)", borderColor: "var(--color-dark-border)", color: "var(--color-text-muted)" }}
           >
             Leave
           </button>
@@ -213,14 +195,10 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
       </header>
 
       {/* Error banner */}
-      {liveKitError && (
+      {liveKitError && liveKitError !== "Reconnecting..." && (
         <div
-          className="relative z-10 mx-6 mt-4 rounded-lg px-4 py-2 text-sm"
-          style={{
-            background: "var(--color-danger-dim)",
-            color: "var(--color-danger)",
-            border: "1px solid rgba(239, 68, 68, 0.25)",
-          }}
+          className="relative z-10 mx-4 mt-2 rounded-lg px-3 py-2 text-xs lg:mx-6"
+          style={{ background: "var(--color-danger-dim)", color: "var(--color-danger)" }}
         >
           {liveKitError}
         </div>
@@ -229,27 +207,22 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
       {/* Browser warning */}
       {!browser.canSing && (
         <div
-          className="relative z-10 mx-6 mt-4 rounded-lg px-4 py-2.5 text-sm"
-          style={{
-            background: "var(--color-accent-dim)",
-            color: "var(--color-accent)",
-            border: "1px solid rgba(245, 158, 11, 0.25)",
-          }}
+          className="relative z-10 mx-4 mt-2 rounded-lg px-3 py-2 text-xs lg:mx-6"
+          style={{ background: "var(--color-accent-dim)", color: "var(--color-accent)" }}
         >
           {browser.isMobile
-            ? "📱 Mobile detected — you can listen and chat, but singing (audio sharing) requires a desktop Chromium browser."
-            : `⚠ ${browser.name} detected — singing (audio sharing) works best on Chrome or Edge. You can still listen and chat!`}
+            ? "Mobile detected — you can listen and chat, but singing requires desktop Chrome/Edge."
+            : `${browser.name} detected — singing works best on Chrome or Edge.`}
         </div>
       )}
 
-      {/* Main content — scrolls between fixed header and footer */}
-      <div className="relative z-10 flex min-h-0 flex-1 flex-col gap-6 overflow-auto p-6 lg:flex-row">
-        {/* Left: Stage area */}
-        <div className="flex flex-1 flex-col gap-6">
-          <NowSinging
+      {/* Main content */}
+      <div className="relative z-10 flex min-h-0 flex-1 flex-col gap-3 p-3 lg:flex-row lg:gap-4 lg:p-4">
+        {/* Left: Stage + Toolbar + Chat */}
+        <div className="flex min-h-0 flex-1 flex-col gap-3">
+          <StageBanner
             roomState={roomState}
             isMyTurn={isMyTurn}
-            myPeerId={myPeerId}
             isSharing={isSharing}
             onStartSharing={startSharing}
             onStopSharing={stopSharing}
@@ -260,60 +233,66 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
                 ? participantStatus[roomState.currentSingerId]?.currentSong ?? null
                 : null
             }
-            musicVolume={musicVolume}
-            onMusicVolumeChange={handleMusicVolumeChange}
+            canSing={browser.canSing}
             onMixMicGain={setMixMicGain}
             onMixMusicGain={setMixMusicGain}
           />
 
-          <ReactionBar
-            reactions={reactions}
-            onReact={sendReaction}
-          />
-
-          <AudioControls
+          <Toolbar
             isMicEnabled={isMicEnabled}
             toggleMic={toggleMic}
-            micCheckState={micCheckState}
-            onMicCheck={startMicCheck}
-            inputDevices={inputDevices}
-            outputDevices={outputDevices}
-            selectedInputId={selectedInputId}
-            selectedOutputId={selectedOutputId}
-            onInputChange={setSelectedInputId}
-            onOutputChange={setSelectedOutputId}
             micMode={micMode}
             onMicModeChange={setMicMode}
-            voiceVolume={voiceVolume}
-            onVoiceVolumeChange={handleVoiceVolumeChange}
+            micCheckState={micCheckState}
+            onMicCheck={startMicCheck}
+            onReact={sendReaction}
+            isMixActive={!!isSharing}
           />
+
+          {/* Chat — gets the most space */}
+          <div className="min-h-0 flex-1">
+            <ChatPanel
+              messages={chatMessages}
+              onSend={sendChat}
+              myPeerId={myPeerId}
+            />
+          </div>
         </div>
 
-        {/* Right: Sidebar */}
-        <div className="flex w-full flex-col gap-6 lg:w-80">
-          <QueuePanel
+        {/* Right: People panel */}
+        <div className="flex w-full flex-col lg:w-72">
+          <PeoplePanel
             roomState={roomState}
             myPeerId={myPeerId}
             onJoinQueue={joinQueue}
             onLeaveQueue={leaveQueue}
             canSing={browser.canSing}
-          />
-          <ParticipantList
-            participants={roomState.participants}
-            currentSingerId={roomState.currentSingerId}
-            myPeerId={myPeerId}
             participantStatus={participantStatus}
             activeSpeakers={activeSpeakers}
             personVolumes={personVolumes}
             onPersonVolumeChange={handlePersonVolumeChange}
           />
-          <ChatPanel
-            messages={chatMessages}
-            onSend={sendChat}
-            myPeerId={myPeerId}
-          />
         </div>
       </div>
+
+      {/* Floating reactions */}
+      {reactions.length > 0 && (
+        <div className="pointer-events-none fixed inset-0 z-50 overflow-hidden">
+          {reactions.map((r) => (
+            <span
+              key={r.id}
+              className="absolute text-2xl"
+              style={{
+                left: `${r.left}%`,
+                bottom: "10%",
+                animation: "reaction-float 3s ease-out forwards",
+              }}
+            >
+              {r.emoji}
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* Status bar */}
       <StatusBar
@@ -324,6 +303,21 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
         remoteParticipantCount={remoteParticipantCount}
         sessionStartTime={sessionStartTime}
       />
+
+      {/* Settings drawer */}
+      <SettingsDrawer
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        voiceVolume={voiceVolume}
+        onVoiceVolumeChange={setVoiceVolume}
+        inputDevices={inputDevices}
+        outputDevices={outputDevices}
+        selectedInputId={selectedInputId}
+        selectedOutputId={selectedOutputId}
+        onInputChange={setSelectedInputId}
+        onOutputChange={setSelectedOutputId}
+        micMode={micMode}
+      />
     </main>
   );
 }
@@ -332,28 +326,19 @@ function EditableName({ name, onRename }: { name: string; onRename?: (n: string)
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(name);
 
-  if (!onRename) {
-    return (
-      <span
-        className="rounded-lg border px-3 py-1.5 text-xs font-medium"
-        style={{ borderColor: "var(--color-dark-border)", color: "var(--color-text-primary)" }}
-      >
-        {name}
-      </span>
-    );
-  }
+  if (!onRename) return null;
 
   if (!editing) {
     return (
       <button
         onClick={() => { setDraft(name); setEditing(true); }}
-        className="flex cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all duration-200 hover:border-[var(--color-primary)] hover:scale-105 active:scale-95"
+        className="flex cursor-pointer items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-all hover:border-[var(--color-primary)] hover:scale-105"
         style={{ borderColor: "var(--color-dark-border)", color: "var(--color-text-primary)" }}
-        title="Click to change your name"
+        title="Click to change name"
       >
         {name}
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
         </svg>
       </button>
     );
@@ -361,9 +346,7 @@ function EditableName({ name, onRename }: { name: string; onRename?: (n: string)
 
   const submit = () => {
     const trimmed = draft.trim();
-    if (trimmed && trimmed !== name) {
-      onRename(trimmed);
-    }
+    if (trimmed && trimmed !== name) onRename(trimmed);
     setEditing(false);
   };
 
@@ -373,16 +356,9 @@ function EditableName({ name, onRename }: { name: string; onRename?: (n: string)
       value={draft}
       onChange={(e) => setDraft(e.target.value.slice(0, 20))}
       onBlur={submit}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") submit();
-        if (e.key === "Escape") setEditing(false);
-      }}
-      className="w-28 rounded-lg border px-3 py-1.5 text-xs font-medium outline-none"
-      style={{
-        background: "var(--color-dark-card)",
-        borderColor: "var(--color-primary)",
-        color: "var(--color-text-primary)",
-      }}
+      onKeyDown={(e) => { if (e.key === "Enter") submit(); if (e.key === "Escape") setEditing(false); }}
+      className="w-24 rounded-lg border px-2.5 py-1.5 text-xs outline-none"
+      style={{ background: "var(--color-dark-card)", borderColor: "var(--color-primary)", color: "var(--color-text-primary)" }}
     />
   );
 }
