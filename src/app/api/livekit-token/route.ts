@@ -23,9 +23,12 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Identity must be unique — append random suffix to prevent collisions
-    // when multiple users choose the same display name.
-    const uniqueId = `${name}-${crypto.randomUUID().slice(0, 8)}`;
+    // Use client-provided session ID for stable identity across refreshes.
+    // If the same identity reconnects, LiveKit replaces the old participant
+    // instantly — no ghost participants burning quota.
+    // Falls back to random UUID if no session ID provided (backwards compat).
+    const sessionId = req.nextUrl.searchParams.get("sid");
+    const uniqueId = sessionId || `${name}-${crypto.randomUUID().slice(0, 8)}`;
 
     const at = new AccessToken(apiKey, apiSecret, {
       identity: uniqueId,
@@ -44,7 +47,7 @@ export async function GET(req: NextRequest) {
     // Auto-destroy empty rooms to stop burning LiveKit quota
     at.roomConfig = new RoomConfiguration({
       emptyTimeout: 30,      // destroy room 30s after last participant leaves
-      departureTimeout: 20,  // grace period for reconnections
+      departureTimeout: 5,   // grace period for reconnections (short = fewer ghosts)
       maxParticipants: 10,
     });
 

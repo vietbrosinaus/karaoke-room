@@ -172,8 +172,16 @@ export function useLiveKit({
     // Connect
     const connect = async () => {
       try {
+        // Stable session ID: survives page refresh so LiveKit replaces the
+        // old participant instead of creating a ghost duplicate.
+        let sid = sessionStorage.getItem(`lk-sid-${roomCode}`);
+        if (!sid) {
+          sid = `${playerName}-${crypto.randomUUID().slice(0, 8)}`;
+          sessionStorage.setItem(`lk-sid-${roomCode}`, sid);
+        }
+
         const res = await fetch(
-          `/api/livekit-token?room=${encodeURIComponent(roomCode)}&name=${encodeURIComponent(playerName)}`,
+          `/api/livekit-token?room=${encodeURIComponent(roomCode)}&name=${encodeURIComponent(playerName)}&sid=${encodeURIComponent(sid)}`,
         );
         if (!res.ok) {
           const text = await res.text();
