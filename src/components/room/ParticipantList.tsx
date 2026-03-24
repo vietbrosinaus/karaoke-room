@@ -60,12 +60,12 @@ export function ParticipantList({
               className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-all duration-200"
               style={{
                 background: isSpeaking
-                  ? "rgba(139, 92, 246, 0.12)"
+                  ? "rgba(139, 92, 246, 0.18)"
                   : p.id === myPeerId
                     ? "rgba(139, 92, 246, 0.06)"
                     : "transparent",
                 boxShadow: isSpeaking
-                  ? "inset 0 0 0 1px rgba(139, 92, 246, 0.3)"
+                  ? "inset 0 0 0 1.5px rgba(139, 92, 246, 0.5), 0 0 12px rgba(139, 92, 246, 0.2)"
                   : "none",
                 animation: `slide-in 0.3s ease-out ${i * 0.04}s both`,
               }}
@@ -74,7 +74,7 @@ export function ParticipantList({
                 className="relative flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold"
                 style={{
                   background: isSpeaking
-                    ? "rgba(139, 92, 246, 0.3)"
+                    ? "rgba(139, 92, 246, 0.45)"
                     : p.id === currentSingerId
                       ? "var(--color-primary-dim)"
                       : "var(--color-dark-card)",
