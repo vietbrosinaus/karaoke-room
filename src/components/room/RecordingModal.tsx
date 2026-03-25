@@ -1,10 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Download, Play, Square, Trash2, Loader2 } from "lucide-react";
-import { convertToMp3, convertToWav } from "~/lib/audioConvert";
-
-type ConvertFormat = "mp3" | "wav";
+import { Download, Play, Square, Trash2, ExternalLink } from "lucide-react";
 
 interface RecordingModalProps {
   open: boolean;
@@ -16,11 +13,9 @@ interface RecordingModalProps {
 
 export function RecordingModal({ open, blob, duration, songName, onClose }: RecordingModalProps) {
   const [isPlaying, setIsPlaying] = useState(false);
-  const [converting, setConverting] = useState<ConvertFormat | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const urlRef = useRef<string | null>(null);
 
-  // Create object URL on mount, revoke on unmount
   useEffect(() => {
     if (open && blob) {
       urlRef.current = URL.createObjectURL(blob);
@@ -37,13 +32,12 @@ export function RecordingModal({ open, blob, duration, songName, onClose }: Reco
     };
   }, [open, blob]);
 
-  // Escape to close
   useEffect(() => {
     if (!open) return;
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape" && !converting) onClose(); };
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [open, onClose, converting]);
+  }, [open, onClose]);
 
   if (!open) return null;
 
@@ -53,15 +47,6 @@ export function RecordingModal({ open, blob, duration, songName, onClose }: Reco
     const m = Math.floor(s / 60);
     const sec = s % 60;
     return `${m}:${sec.toString().padStart(2, "0")}`;
-  };
-
-  const triggerDownload = (url: string, ext: string) => {
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${fileName}.${ext}`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
   };
 
   const handlePlay = () => {
@@ -80,24 +65,14 @@ export function RecordingModal({ open, blob, duration, songName, onClose }: Reco
     void audio.play();
   };
 
-  const handleDownloadWebm = () => {
+  const handleDownload = () => {
     if (!urlRef.current) return;
-    triggerDownload(urlRef.current, "webm");
-  };
-
-  const handleConvert = async (format: ConvertFormat) => {
-    if (converting) return;
-    setConverting(format);
-    try {
-      const converted = format === "mp3" ? await convertToMp3(blob) : await convertToWav(blob);
-      const url = URL.createObjectURL(converted);
-      triggerDownload(url, format);
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error(`[Recording] ${format} conversion failed:`, err);
-    } finally {
-      setConverting(null);
-    }
+    const a = document.createElement("a");
+    a.href = urlRef.current;
+    a.download = `${fileName}.webm`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   };
 
   const fileSizeKB = Math.round(blob.size / 1024);
@@ -105,7 +80,7 @@ export function RecordingModal({ open, blob, duration, songName, onClose }: Reco
 
   return (
     <>
-      <div className="fixed inset-0 z-40" style={{ background: "rgba(0,0,0,0.6)" }} onClick={converting ? undefined : onClose} />
+      <div className="fixed inset-0 z-40" style={{ background: "rgba(0,0,0,0.6)" }} onClick={onClose} />
       <div
         className="fixed left-1/2 top-1/2 z-50 w-80 -translate-x-1/2 -translate-y-1/2 rounded-xl border p-5"
         style={{
@@ -130,8 +105,7 @@ export function RecordingModal({ open, blob, duration, songName, onClose }: Reco
         {/* Preview */}
         <button
           onClick={handlePlay}
-          disabled={!!converting}
-          className="mb-4 flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border py-2.5 text-xs font-medium transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+          className="mb-4 flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border py-2.5 text-xs font-medium transition-all hover:brightness-110"
           style={{
             borderColor: isPlaying ? "var(--color-primary)" : "var(--color-dark-border)",
             background: isPlaying ? "var(--color-primary-dim)" : "transparent",
@@ -141,58 +115,40 @@ export function RecordingModal({ open, blob, duration, songName, onClose }: Reco
           {isPlaying ? <><Square size={12} /> Stop Preview</> : <><Play size={12} /> Preview</>}
         </button>
 
-        {/* Download WebM (instant) */}
+        {/* Download WebM */}
         <button
-          onClick={handleDownloadWebm}
-          disabled={!!converting}
-          className="mb-3 flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-lg py-2.5 text-xs font-bold transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+          onClick={handleDownload}
+          className="mb-3 flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-lg py-2.5 text-xs font-bold transition-all hover:brightness-110"
           style={{ fontFamily: "var(--font-display)", background: "var(--color-primary)", color: "#fff" }}
         >
           <Download size={12} />
           Download WebM
         </button>
 
-        {/* Convert to other formats */}
+        {/* Convert externally */}
         <div className="mb-3">
           <p className="mb-2 text-center text-[10px] uppercase tracking-wider" style={{ color: "var(--color-text-muted)" }}>
-            Or convert to
+            Need MP3?
           </p>
-          <div className="flex gap-2">
-            <button
-              onClick={() => void handleConvert("mp3")}
-              disabled={!!converting}
-              className="flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg border py-2 text-xs font-medium transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
-              style={{
-                borderColor: converting === "mp3" ? "var(--color-accent)" : "var(--color-dark-border)",
-                background: converting === "mp3" ? "var(--color-accent-dim)" : "transparent",
-                color: converting === "mp3" ? "var(--color-accent)" : "var(--color-text-primary)",
-              }}
-            >
-              {converting === "mp3" ? <><Loader2 size={11} className="animate-spin" /> Converting...</> : "MP3"}
-            </button>
-            <button
-              onClick={() => void handleConvert("wav")}
-              disabled={!!converting}
-              className="flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg border py-2 text-xs font-medium transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
-              style={{
-                borderColor: converting === "wav" ? "var(--color-accent)" : "var(--color-dark-border)",
-                background: converting === "wav" ? "var(--color-accent-dim)" : "transparent",
-                color: converting === "wav" ? "var(--color-accent)" : "var(--color-text-primary)",
-              }}
-            >
-              {converting === "wav" ? <><Loader2 size={11} className="animate-spin" /> Converting...</> : "WAV"}
-            </button>
-          </div>
+          <a
+            href="https://cloudconvert.com/webm-to-mp3"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex w-full items-center justify-center gap-1.5 rounded-lg border py-2 text-xs font-medium transition-all hover:brightness-110"
+            style={{ borderColor: "var(--color-dark-border)", color: "var(--color-text-primary)" }}
+          >
+            Convert to MP3
+            <ExternalLink size={10} style={{ opacity: 0.5 }} />
+          </a>
           <p className="mt-1.5 text-center text-[9px]" style={{ color: "var(--color-text-muted)" }}>
-            Converts in your browser — nothing uploaded
+            Free converter — drop your .webm file in
           </p>
         </div>
 
         {/* Discard */}
         <button
           onClick={onClose}
-          disabled={!!converting}
-          className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-lg border py-2 text-xs font-medium transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-lg border py-2 text-xs font-medium transition-all hover:brightness-110"
           style={{ borderColor: "var(--color-dark-border)", color: "var(--color-text-muted)" }}
         >
           <Trash2 size={12} />
