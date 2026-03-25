@@ -6,20 +6,34 @@ import type { Participant } from "~/types/room";
 
 interface RandomWheelProps {
   participants: Participant[];
+  queue: string[];
+  currentSingerId: string | null;
   myName?: string;
   onPick: (participant: Participant) => void;
 }
 
-export function RandomWheel({ participants, myName, onPick }: RandomWheelProps) {
+export function RandomWheel({ participants, queue, currentSingerId, myName, onPick }: RandomWheelProps) {
   const [spunBy, setSpunBy] = useState<string | null>(null);
   const [spinning, setSpinning] = useState(false);
   const [rotation, setRotation] = useState(0);
   const [winner, setWinner] = useState<Participant | null>(null);
   const wheelRef = useRef<HTMLDivElement>(null);
 
-  if (participants.length < 1) return null;
+  // Only show people who are NOT in queue and NOT singing
+  const queueSet = new Set(queue);
+  const available = participants.filter((p) => !queueSet.has(p.id) && p.id !== currentSingerId);
 
-  const segmentAngle = 360 / participants.length;
+  if (available.length < 1) {
+    return (
+      <div className="flex flex-col items-center gap-2 py-3">
+        <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+          {participants.length < 1 ? "No one here yet" : "Everyone is queued or singing!"}
+        </p>
+      </div>
+    );
+  }
+
+  const segmentAngle = 360 / available.length;
 
   // Colors for wheel segments — cycle through these
   const colors = [
@@ -46,8 +60,8 @@ export function RandomWheel({ participants, myName, onPick }: RandomWheelProps) 
 
     setRotation(totalRotation);
 
-    // Capture at spin time to prevent stale closure if participants change mid-spin
-    const spinParticipants = [...participants];
+    // Capture at spin time to prevent stale closure if available list changes mid-spin
+    const spinParticipants = [...available];
     const spinSegmentAngle = 360 / spinParticipants.length;
 
     // After animation ends, determine winner
@@ -73,7 +87,7 @@ export function RandomWheel({ participants, myName, onPick }: RandomWheelProps) 
         className="relative h-40 w-40 rounded-full border-2"
         style={{
           borderColor: "var(--color-dark-border)",
-          background: `conic-gradient(${participants.map((_, i) => {
+          background: `conic-gradient(${available.map((_, i) => {
             const color = colors[i % colors.length];
             const start = (i * segmentAngle / 360 * 100).toFixed(1);
             const end = ((i + 1) * segmentAngle / 360 * 100).toFixed(1);
@@ -83,7 +97,7 @@ export function RandomWheel({ participants, myName, onPick }: RandomWheelProps) 
           transition: spinning ? "transform 3.5s cubic-bezier(0.17, 0.67, 0.12, 0.99)" : "none",
         }}
       >
-        {participants.map((p, i) => {
+        {available.map((p, i) => {
           const startAngle = i * segmentAngle;
           const midAngle = startAngle + segmentAngle / 2;
           // Position text at the midpoint of each segment
@@ -112,7 +126,7 @@ export function RandomWheel({ participants, myName, onPick }: RandomWheelProps) 
         })}
 
         {/* Segment dividers */}
-        {participants.map((_, i) => (
+        {available.map((_, i) => (
           <div
             key={i}
             className="absolute left-1/2 top-0 h-1/2 w-px origin-bottom"
@@ -141,13 +155,22 @@ export function RandomWheel({ participants, myName, onPick }: RandomWheelProps) 
           <p className="text-xs font-bold" style={{ color: "var(--color-primary)", fontFamily: "var(--font-display)" }}>
             {winner.name}!
           </p>
-          <button
-            onClick={() => { onPick(winner); setWinner(null); }}
-            className="mt-1 cursor-pointer rounded-lg px-3 py-1.5 text-[11px] font-medium transition-all hover:brightness-110"
-            style={{ background: "var(--color-primary)", color: "#fff" }}
-          >
-            Spin Again
-          </button>
+          <div className="mt-1.5 flex items-center justify-center gap-2">
+            <button
+              onClick={() => { onPick(winner); setWinner(null); }}
+              className="cursor-pointer rounded-lg px-3 py-1.5 text-[11px] font-medium transition-all hover:brightness-110"
+              style={{ background: "var(--color-primary)", color: "#fff" }}
+            >
+              Add to Queue
+            </button>
+            <button
+              onClick={() => setWinner(null)}
+              className="cursor-pointer rounded-lg border px-3 py-1.5 text-[11px] font-medium transition-all hover:brightness-110"
+              style={{ borderColor: "var(--color-dark-border)", color: "var(--color-text-muted)" }}
+            >
+              Dismiss
+            </button>
+          </div>
         </div>
       ) : (
         <button

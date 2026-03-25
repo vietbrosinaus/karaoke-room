@@ -93,6 +93,7 @@ export async function GET(req: NextRequest) {
   try {
     const room = req.nextUrl.searchParams.get("room");
     const name = req.nextUrl.searchParams.get("name");
+    const keyHint = req.nextUrl.searchParams.get("keyHint"); // "next" to skip current key
 
     if (!room || !name) {
       return NextResponse.json(
@@ -107,6 +108,12 @@ export async function GET(req: NextRequest) {
         { error: "LiveKit credentials not configured" },
         { status: 500 },
       );
+    }
+
+    // If client reported a connect failure, rotate to next key
+    if (keyHint === "next" && keySets.length > 1) {
+      markExhausted(activeKeyIndex);
+      rotateToNext(keySets, activeKeyIndex);
     }
 
     // Try key sets with failover

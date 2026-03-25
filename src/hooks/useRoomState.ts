@@ -29,8 +29,12 @@ interface UseRoomStateReturn {
   isMyTurn: boolean;
   send: (msg: ClientMessage) => void;
   sendChat: (text: string) => void;
-  sendStatusUpdate: (status: { isMuted: boolean; isSharingAudio: boolean; currentSong: string | null; browser?: string }) => void;
+  sendStatusUpdate: (status: { isMuted: boolean; isSharingAudio: boolean; currentSong: string | null; browser?: string; lkIdentity?: string }) => void;
   sendReaction: (emoji: string) => void;
+  sendMuteAll: () => void;
+  sendUnmuteAll: () => void;
+  addToQueue: (targetPeerId: string) => void;
+  mutedBySinger: string | null;
   chatMessages: ChatMessage[];
   participantStatus: Record<string, ParticipantStatus>;
   reactions: Reaction[];
@@ -42,6 +46,7 @@ const INITIAL_ROOM_STATE: RoomState = {
   currentSingerId: null,
   chatMessages: [],
   participantStatus: {},
+  mutedBySinger: null,
 };
 
 export function useRoomState({
@@ -54,6 +59,7 @@ export function useRoomState({
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [participantStatus, setParticipantStatus] = useState<Record<string, ParticipantStatus>>({});
   const [reactions, setReactions] = useState<Reaction[]>([]);
+  const [mutedBySinger, setMutedBySinger] = useState<string | null>(null);
   const reactionIdRef = useRef(0);
   const hasSentJoinRef = useRef(false);
   const onRawMessageRef = useRef(onRawMessage);
@@ -83,6 +89,8 @@ export function useRoomState({
           participants: msg.state.participants ?? [],
         };
         setRoomState(state);
+        // Sync mutedBySinger from server state (persisted across reconnects)
+        setMutedBySinger(state.mutedBySinger ?? null);
         setParticipantStatus(state.participantStatus);
         // Only sync chat from room-state on first load (catch-up).
         // After that, chat arrives via individual "chat" events.
@@ -127,6 +135,14 @@ export function useRoomState({
         }, 3000);
         break;
       }
+      case "mute-all":
+        console.log("[RoomState] Muted by singer:", msg.singerName);
+        setMutedBySinger(msg.singerName);
+        break;
+      case "unmute-all":
+        console.log("[RoomState] Unmuted by singer");
+        setMutedBySinger(null);
+        break;
       case "you-joined":
         console.log("[RoomState] My peer ID:", msg.peerId);
         setMyPeerId(msg.peerId);
@@ -180,18 +196,31 @@ export function useRoomState({
     }
   }, [send]);
 
-  const sendStatusUpdate = useCallback((status: { isMuted: boolean; isSharingAudio: boolean; currentSong: string | null; browser?: string }) => {
+  const sendStatusUpdate = useCallback((status: { isMuted: boolean; isSharingAudio: boolean; currentSong: string | null; browser?: string; lkIdentity?: string }) => {
     send({
       type: "status-update",
       isMuted: status.isMuted,
       isSharingAudio: status.isSharingAudio,
       currentSong: status.currentSong,
       browser: status.browser,
+      lkIdentity: status.lkIdentity,
     });
   }, [send]);
 
   const sendReaction = useCallback((emoji: string) => {
     send({ type: "reaction", emoji });
+  }, [send]);
+
+  const sendMuteAll = useCallback(() => {
+    send({ type: "mute-all" });
+  }, [send]);
+
+  const sendUnmuteAll = useCallback(() => {
+    send({ type: "unmute-all" });
+  }, [send]);
+
+  const addToQueue = useCallback((targetPeerId: string) => {
+    send({ type: "add-to-queue", targetPeerId });
   }, [send]);
 
   const isMyTurn = myPeerId !== null && roomState.currentSingerId === myPeerId;
@@ -208,6 +237,10 @@ export function useRoomState({
     sendChat,
     sendStatusUpdate,
     sendReaction,
+    sendMuteAll,
+    sendUnmuteAll,
+    addToQueue,
+    mutedBySinger,
     chatMessages,
     participantStatus,
     reactions,

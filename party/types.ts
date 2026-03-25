@@ -18,6 +18,7 @@ export interface ParticipantStatus {
   isSharingAudio: boolean;
   currentSong: string | null;
   browser?: string;
+  lkIdentity?: string;
 }
 
 export interface RoomState {
@@ -26,6 +27,7 @@ export interface RoomState {
   currentSingerId: string | null;
   chatMessages: ChatMessage[];
   participantStatus: Record<string, ParticipantStatus>;
+  mutedBySinger: string | null;
 }
 
 // Client -> Server
@@ -36,8 +38,11 @@ export type ClientMessage =
   | { type: "finish-singing" }
   | { type: "signal"; to: string; payload: SignalPayload }
   | { type: "chat"; text: string }
-  | { type: "status-update"; isMuted: boolean; isSharingAudio: boolean; currentSong: string | null; browser?: string }
+  | { type: "status-update"; isMuted: boolean; isSharingAudio: boolean; currentSong: string | null; browser?: string; lkIdentity?: string }
   | { type: "reaction"; emoji: string }
+  | { type: "mute-all" }
+  | { type: "unmute-all" }
+  | { type: "add-to-queue"; targetPeerId: string }
   | { type: "pong" };
 
 // Server -> Client
@@ -51,6 +56,8 @@ export type ServerMessage =
   | { type: "chat"; from: string; fromName: string; text: string; timestamp: number }
   | { type: "participant-status"; peerId: string; status: ParticipantStatus }
   | { type: "reaction"; from: string; fromName: string; emoji: string }
+  | { type: "mute-all"; singerName: string }
+  | { type: "unmute-all" }
   | { type: "ping" };
 
 export type SignalPayload =

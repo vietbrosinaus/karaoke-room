@@ -130,14 +130,8 @@ export function PeoplePanel({
           const status = participantStatus[p.id];
           const isExpanded = expandedId === p.id && !isMe;
 
-          // Find LiveKit identity from audio elements
-          const lkIdentity = (() => {
-            if (typeof document === "undefined") return p.name;
-            const el = document.querySelector<HTMLAudioElement>(
-              `audio[data-lk-identity^="${CSS.escape(p.name)}-"]`
-            );
-            return el?.dataset.lkIdentity ?? p.name;
-          })();
+          // Use LiveKit identity from status (broadcast via PartyKit) — no DOM queries needed
+          const lkIdentity = status?.lkIdentity ?? p.name;
           const personVol = personVolumes[lkIdentity] ?? 1;
 
           return (

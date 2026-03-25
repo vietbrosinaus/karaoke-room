@@ -21,6 +21,7 @@ export default class KaraokeRoom implements Party.Server {
   currentSingerId: string | null = null;
   chatMessages: ChatMessage[] = [];
   participantStatus: Map<string, ParticipantStatus> = new Map();
+  mutedBySinger: string | null = null; // persisted so reconnecting clients get correct state
 
   // Heartbeat: track last pong time per connection
   private lastPong: Map<string, number> = new Map();
@@ -122,10 +123,20 @@ export default class KaraokeRoom implements Party.Server {
           isSharingAudio: msg.isSharingAudio,
           currentSong: msg.currentSong,
           browser: msg.browser,
+          lkIdentity: msg.lkIdentity,
         });
         break;
       case "reaction":
         this.handleReaction(sender, msg.emoji);
+        break;
+      case "mute-all":
+        this.handleMuteAll(sender);
+        break;
+      case "unmute-all":
+        this.handleUnmuteAll(sender);
+        break;
+      case "add-to-queue":
+        this.handleAddToQueue(sender, msg.targetPeerId);
         break;
       default:
         this.send(sender, { type: "error", message: "Unknown message type" });
@@ -336,10 +347,69 @@ export default class KaraokeRoom implements Party.Server {
     });
   }
 
+  private handleMuteAll(sender: Party.Connection) {
+    // Only the current singer can mute everyone
+    if (this.currentSingerId !== sender.id) {
+      this.send(sender, { type: "error", message: "Only the singer can mute all" });
+      return;
+    }
+    const participant = this.participants.get(sender.id);
+    if (!participant) return;
+
+    this.mutedBySinger = participant.name;
+
+    // Broadcast to all except the singer
+    for (const [id, entry] of this.participants) {
+      if (id !== sender.id) {
+        this.send(entry.ws, { type: "mute-all", singerName: participant.name });
+      }
+    }
+  }
+
+  private handleUnmuteAll(sender: Party.Connection) {
+    if (this.currentSingerId !== sender.id) {
+      this.send(sender, { type: "error", message: "Only the singer can unmute all" });
+      return;
+    }
+
+    this.mutedBySinger = null;
+
+    // Broadcast to all except the singer
+    for (const [id, entry] of this.participants) {
+      if (id !== sender.id) {
+        this.send(entry.ws, { type: "unmute-all" });
+      }
+    }
+  }
+
+  private handleAddToQueue(sender: Party.Connection, targetPeerId: string) {
+    // Anyone can add someone to the queue
+    if (!this.participants.has(targetPeerId)) {
+      this.send(sender, { type: "error", message: "Target participant not found" });
+      return;
+    }
+    if (this.queue.includes(targetPeerId)) {
+      return; // already in queue
+    }
+    if (this.currentSingerId === targetPeerId) {
+      return; // already singing
+    }
+
+    this.queue.push(targetPeerId);
+
+    if (this.currentSingerId === null) {
+      this.promoteNextSinger();
+    }
+
+    this.broadcastState();
+  }
+
   // ── Helpers ─────────────────────────────────────────────────
 
   private promoteNextSinger() {
     if (this.currentSingerId !== null) return;
+    // Clear mute-all when no singer is active
+    this.mutedBySinger = null;
     if (this.queue.length === 0) {
       this.resetSingerTimer();
       return;
@@ -374,6 +444,7 @@ export default class KaraokeRoom implements Party.Server {
       currentSingerId: this.currentSingerId,
       chatMessages: [...this.chatMessages],
       participantStatus,
+      mutedBySinger: this.mutedBySinger,
     };
   }
 

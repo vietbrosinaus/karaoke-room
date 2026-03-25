@@ -38,6 +38,7 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
   // These control the constraints used during mic check and sharing
   const [talkingNC, setTalkingNC] = useState(true);   // ON by default for talking
   const [singingNC, setSingingNC] = useState(false);   // OFF by default for singing
+  const [singerMutedAll, setSingerMutedAll] = useState(false);
 
   const {
     roomState,
@@ -50,6 +51,10 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
     sendChat,
     sendStatusUpdate,
     sendReaction,
+    sendMuteAll,
+    sendUnmuteAll,
+    addToQueue,
+    mutedBySinger,
     chatMessages,
     participantStatus,
     reactions,
@@ -77,6 +82,7 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
     micCheckState,
     startTalkingMicCheck,
     startSingingMicCheck,
+    stopMicCheck,
     isSharing,
     startSharing,
     stopSharing,
@@ -142,25 +148,28 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
   const handlePersonVolumeChange = useCallback((identity: string, vol: number) => {
     setPersonVolumes((prev) => ({ ...prev, [identity]: vol }));
     // If this person is the current singer, also sync the music volume
-    // (since music + voice are mixed into one stream tagged as "music")
     if (roomState.currentSingerId) {
-      const singer = roomState.participants.find((p) => p.id === roomState.currentSingerId);
-      if (singer && (identity.startsWith(singer.name + "-") || identity === singer.name)) {
+      const singerStatus = participantStatus[roomState.currentSingerId];
+      const singerIdentity = singerStatus?.lkIdentity ?? roomState.participants.find((p) => p.id === roomState.currentSingerId)?.name;
+      if (singerIdentity && identity === singerIdentity) {
         setMusicVolume(vol);
       }
     }
-  }, [roomState.currentSingerId, roomState.participants]);
+  }, [roomState.currentSingerId, roomState.participants, participantStatus]);
+
+  // LiveKit identity for status updates — must be before statusCtxRef
+  const lkIdentity = room?.localParticipant?.identity ?? null;
 
   // Listen for manual song name from singer — ref-stable to avoid re-registration
-  const statusCtxRef = useRef({ isMicEnabled, isSharing, browser, sendStatusUpdate });
-  statusCtxRef.current = { isMicEnabled, isSharing, browser, sendStatusUpdate };
+  const statusCtxRef = useRef({ isMicEnabled, isSharing, browser, sendStatusUpdate, lkIdentity });
+  statusCtxRef.current = { isMicEnabled, isSharing, browser, sendStatusUpdate, lkIdentity };
 
   useEffect(() => {
     const handler = (e: Event) => {
       const name = (e as CustomEvent<string>).detail;
       if (!name) return;
-      const { isMicEnabled: mic, isSharing: share, browser: b, sendStatusUpdate: send } = statusCtxRef.current;
-      send({ isMuted: !mic, isSharingAudio: share, currentSong: name, browser: b.name + (b.isMobile ? " (Mobile)" : "") });
+      const { isMicEnabled: mic, isSharing: share, browser: b, sendStatusUpdate: send, lkIdentity: lkId } = statusCtxRef.current;
+      send({ isMuted: !mic, isSharingAudio: share, currentSong: name, browser: b.name + (b.isMobile ? " (Mobile)" : ""), lkIdentity: lkId ?? undefined });
     };
     window.addEventListener("karaoke-set-song", handler);
     return () => window.removeEventListener("karaoke-set-song", handler);
@@ -176,6 +185,30 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
     prevReactionCountRef.current = reactions.length;
   }, [reactions]);
 
+  // Mute/unmute mic when singer sends mute-all
+  // Snapshot pre-mute state so unmute only restores those who were unmuted before
+  const wasMutedBySingerRef = useRef(false);
+  const micWasOnBeforeMuteRef = useRef(false);
+  useEffect(() => {
+    if (mutedBySinger && !wasMutedBySingerRef.current) {
+      wasMutedBySingerRef.current = true;
+      // Read ground truth from LiveKit directly (not React state) to avoid race
+      const micIsOn = room?.localParticipant?.isMicrophoneEnabled ?? false;
+      micWasOnBeforeMuteRef.current = micIsOn;
+      if (micIsOn && room?.localParticipant) {
+        void room.localParticipant.setMicrophoneEnabled(false);
+      }
+    }
+    if (!mutedBySinger && wasMutedBySingerRef.current) {
+      wasMutedBySingerRef.current = false;
+      // Only restore mic if it was on before the mute-all
+      if (micWasOnBeforeMuteRef.current && room?.localParticipant) {
+        void room.localParticipant.setMicrophoneEnabled(true);
+      }
+      micWasOnBeforeMuteRef.current = false;
+    }
+  }, [mutedBySinger, room]);
+
   // Auto-switch to singing mode ONCE when becoming the singer
   const wasMyTurnRef = useRef(false);
   useEffect(() => {
@@ -183,10 +216,13 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
       wasMyTurnRef.current = true;
       if (micMode === "voice") setMicMode("raw");
     }
-    if (!isMyTurn) wasMyTurnRef.current = false;
+    if (!isMyTurn) {
+      wasMyTurnRef.current = false;
+      if (singerMutedAll) setSingerMutedAll(false);
+    }
   }, [isMyTurn, micMode, setMicMode]);
 
-  // Send status updates
+  // Send status updates (includes LiveKit identity for per-person volume matching)
   useEffect(() => {
     if (!isPartyConnected) return;
     sendStatusUpdate({
@@ -194,8 +230,9 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
       isSharingAudio: isSharing,
       currentSong,
       browser: browser.name + (browser.isMobile ? " (Mobile)" : ""),
+      lkIdentity: lkIdentity ?? undefined,
     });
-  }, [isMicEnabled, isSharing, currentSong, isPartyConnected, sendStatusUpdate, browser]);
+  }, [isMicEnabled, isSharing, currentSong, isPartyConnected, sendStatusUpdate, browser, lkIdentity]);
 
   return (
     <main className="relative flex h-dvh flex-col overflow-hidden">
@@ -275,6 +312,16 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
         </div>
       )}
 
+      {/* Muted by singer banner */}
+      {mutedBySinger && (
+        <div
+          className="relative z-10 mx-4 mt-2 rounded-lg px-3 py-2 text-xs lg:mx-6"
+          style={{ background: "var(--color-accent-dim)", color: "var(--color-accent)" }}
+        >
+          {mutedBySinger} muted everyone&apos;s mic
+        </div>
+      )}
+
       {/* Browser warning */}
       {!browser.canSing && (
         <div
@@ -311,19 +358,17 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
               setMusicVolume(vol);
               // Sync per-person volume for the singer too
               if (roomState.currentSingerId) {
-                const singer = roomState.participants.find((p) => p.id === roomState.currentSingerId);
-                if (singer) {
-                  const el = document.querySelector<HTMLAudioElement>(
-                    `audio[data-lk-identity^="${CSS.escape(singer.name)}-"]`
-                  );
-                  const id = el?.dataset.lkIdentity ?? singer.name;
-                  setPersonVolumes((prev) => ({ ...prev, [id]: vol }));
-                }
+                const singerStatus = participantStatus[roomState.currentSingerId];
+                const singerId = singerStatus?.lkIdentity ?? roomState.participants.find((p) => p.id === roomState.currentSingerId)?.name ?? "";
+                if (singerId) setPersonVolumes((prev) => ({ ...prev, [singerId]: vol }));
               }
             }}
             onMixMicGain={setMixMicGain}
             onMixMusicGain={setMixMusicGain}
             ambientId="ambient-bg"
+            onMuteAll={() => { sendMuteAll(); setSingerMutedAll(true); }}
+            onUnmuteAll={() => { sendUnmuteAll(); setSingerMutedAll(false); }}
+            isMutedAll={singerMutedAll}
           />
 
           <Toolbar
@@ -357,6 +402,7 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
                 isSharingAudio: isSharing,
                 currentSong: song,
                 browser: browser.name + (browser.isMobile ? " (Mobile)" : ""),
+                lkIdentity: lkIdentity ?? undefined,
               });
             }}
             canSing={browser.canSing}
@@ -373,9 +419,13 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
           >
             <RandomWheel
               participants={roomState.participants}
+              queue={roomState.queue}
+              currentSingerId={roomState.currentSingerId}
               myName={playerName}
               onPick={(p) => {
               if (p.id === myPeerId) joinQueue();
+              else addToQueue(p.id);
+              sendChat(`spun the wheel — ${p.name} is up next!`);
             }}
             />
           </div>
@@ -441,6 +491,7 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
         onOutputChange={setSelectedOutputId}
         onTalkingMicCheck={() => startTalkingMicCheck(talkingNC)}
         onSingingMicCheck={() => startSingingMicCheck(singingNC)}
+        onStopMicCheck={stopMicCheck}
         micCheckState={micCheckState}
       />
     </main>

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import type { Room } from "livekit-client";
 import type { RoomState } from "~/types/room";
-import { Mic, Music } from "lucide-react";
+import { Mic, Music, VolumeX, Volume2 } from "lucide-react";
 import { AudioVisualizer } from "./AudioVisualizer";
 
 interface StageBannerProps {
@@ -22,6 +22,9 @@ interface StageBannerProps {
   onMixMicGain?: (val: number) => void;
   onMixMusicGain?: (val: number) => void;
   ambientId?: string;
+  onMuteAll?: () => void;
+  onUnmuteAll?: () => void;
+  isMutedAll?: boolean;
 }
 
 export function StageBanner({
@@ -40,6 +43,9 @@ export function StageBanner({
   onMixMicGain,
   onMixMusicGain,
   ambientId,
+  onMuteAll,
+  onUnmuteAll,
+  isMutedAll = false,
 }: StageBannerProps) {
   const currentSinger = roomState.participants.find(
     (p) => p.id === roomState.currentSingerId,
@@ -196,6 +202,21 @@ export function StageBanner({
           )}
 
           <div className="flex gap-2">
+            {onMuteAll && onUnmuteAll && (
+              <button
+                onClick={isMutedAll ? onUnmuteAll : onMuteAll}
+                className="flex cursor-pointer items-center gap-1 rounded-lg border px-3 py-2 text-xs font-medium transition-all hover:brightness-110"
+                style={{
+                  borderColor: isMutedAll ? "var(--color-accent)" : "var(--color-dark-border)",
+                  background: isMutedAll ? "var(--color-accent-dim)" : "transparent",
+                  color: isMutedAll ? "var(--color-accent)" : "var(--color-text-muted)",
+                }}
+                title={isMutedAll ? "Unmute everyone" : "Mute all other microphones"}
+              >
+                {isMutedAll ? <Volume2 size={12} /> : <VolumeX size={12} />}
+                {isMutedAll ? "Unmute" : "Mute All"}
+              </button>
+            )}
             <button
               onClick={onStopSharing}
               className="flex-1 cursor-pointer rounded-lg border py-2 text-xs font-medium transition-all hover:brightness-110"
