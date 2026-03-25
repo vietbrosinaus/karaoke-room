@@ -55,7 +55,9 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
     sendMuteAll,
     sendUnmuteAll,
     addToQueue,
+    sendMixAdjust,
     mutedBySinger,
+    pendingMixAdjust,
     chatMessages,
     participantStatus,
     reactions,
@@ -123,6 +125,10 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
   const [voiceVolume, setVoiceVolume] = useState(1);
   const [personVolumes, setPersonVolumes] = useState<Record<string, number>>({});
 
+  // Collaborative mix values (synced between singer and listeners)
+  const [mixVoiceValue, setMixVoiceValue] = useState(100);
+  const [mixMusicValue, setMixMusicValue] = useState(70);
+
   const applyAllVolumes = useCallback(() => {
     document.querySelectorAll<HTMLAudioElement>('audio[id^="lk-audio-"]').forEach((el) => {
       if (el.dataset.lkType === "music") {
@@ -166,6 +172,19 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
       }
     }
   }, [roomState.currentSingerId, roomState.participants, participantStatus]);
+
+  // Handle incoming collaborative mix adjustments (singer receives these)
+  useEffect(() => {
+    if (!pendingMixAdjust) return;
+    const { fromName, voice, music } = pendingMixAdjust;
+    const voicePercent = Math.round(voice * 100);
+    const musicPercent = Math.round(music * 100);
+    setMixMicGain(voice);
+    setMixMusicGain(music);
+    setMixVoiceValue(voicePercent);
+    setMixMusicValue(musicPercent);
+    sendChat(`${fromName} adjusted mix — Voice ${voicePercent}%, Music ${musicPercent}%`);
+  }, [pendingMixAdjust, setMixMicGain, setMixMusicGain, sendChat]);
 
   // LiveKit identity for status updates — must be before statusCtxRef
   const lkIdentity = room?.localParticipant?.identity ?? null;
@@ -376,12 +395,15 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
                 if (singerId) setPersonVolumes((prev) => ({ ...prev, [singerId]: vol }));
               }
             }}
-            onMixMicGain={setMixMicGain}
-            onMixMusicGain={setMixMusicGain}
+            onMixMicGain={(v) => { setMixMicGain(v); setMixVoiceValue(Math.round(v * 100)); }}
+            onMixMusicGain={(v) => { setMixMusicGain(v); setMixMusicValue(Math.round(v * 100)); }}
+            mixVoiceValue={mixVoiceValue}
+            mixMusicValue={mixMusicValue}
             ambientId="ambient-bg"
             onMuteAll={() => { sendMuteAll(); setSingerMutedAll(true); }}
             onUnmuteAll={() => { sendUnmuteAll(); setSingerMutedAll(false); }}
             isMutedAll={singerMutedAll}
+            onMixAdjust={!isMyTurn ? sendMixAdjust : undefined}
             autoMix={autoMix}
             onAutoMixChange={setAutoMix}
             recordingState={recordingState}

@@ -43,6 +43,7 @@ export type ClientMessage =
   | { type: "mute-all" }
   | { type: "unmute-all" }
   | { type: "add-to-queue"; targetPeerId: string }
+  | { type: "mix-adjust"; voice: number; music: number }
   | { type: "pong" };
 
 // Server -> Client
@@ -58,6 +59,7 @@ export type ServerMessage =
   | { type: "reaction"; from: string; fromName: string; emoji: string }
   | { type: "mute-all"; singerName: string }
   | { type: "unmute-all" }
+  | { type: "mix-adjust"; fromName: string; voice: number; music: number }
   | { type: "ping" };
 
 export type SignalPayload =

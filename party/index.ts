@@ -138,6 +138,9 @@ export default class KaraokeRoom implements Party.Server {
       case "add-to-queue":
         this.handleAddToQueue(sender, msg.targetPeerId);
         break;
+      case "mix-adjust":
+        this.handleMixAdjust(sender, msg.voice, msg.music);
+        break;
       default:
         this.send(sender, { type: "error", message: "Unknown message type" });
     }
@@ -380,6 +383,28 @@ export default class KaraokeRoom implements Party.Server {
         this.send(entry.ws, { type: "unmute-all" });
       }
     }
+  }
+
+  private handleMixAdjust(sender: Party.Connection, voice: number, music: number) {
+    // Only allow when someone is singing
+    if (!this.currentSingerId) return;
+    const participant = this.participants.get(sender.id);
+    if (!participant) return;
+
+    // Clamp values to 0-1.5 range
+    const clampedVoice = Math.max(0, Math.min(1.5, voice));
+    const clampedMusic = Math.max(0, Math.min(1.5, music));
+
+    // Send to the singer's client (the one who controls the AudioContext)
+    const singer = this.participants.get(this.currentSingerId);
+    if (!singer) return;
+
+    this.send(singer.ws, {
+      type: "mix-adjust",
+      fromName: participant.name,
+      voice: clampedVoice,
+      music: clampedMusic,
+    });
   }
 
   private handleAddToQueue(sender: Party.Connection, targetPeerId: string) {
