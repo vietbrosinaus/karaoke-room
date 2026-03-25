@@ -8,6 +8,7 @@ import { useAudioDevices } from "~/hooks/useAudioDevices";
 import { Settings as SettingsIcon } from "lucide-react";
 import { detectBrowser, type BrowserInfo } from "~/lib/browser";
 import { StageBanner } from "./StageBanner";
+import { RandomWheel } from "./RandomWheel";
 import { Toolbar } from "./Toolbar";
 import { PeoplePanel } from "./PeoplePanel";
 import { ChatPanel } from "./ChatPanel";
@@ -335,15 +336,14 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
           </div>
         </div>
 
-        {/* Right: People panel */}
-        <div className="flex max-h-52 w-full flex-col overflow-hidden lg:max-h-none lg:w-72">
+        {/* Right: People panel + Random Wheel */}
+        <div className="flex w-full flex-col gap-3 lg:w-72 lg:min-h-0 lg:overflow-auto">
           <PeoplePanel
             roomState={roomState}
             myPeerId={myPeerId}
             onJoinQueue={joinQueue}
             onLeaveQueue={leaveQueue}
             onSetSongIntent={(song) => {
-              // Broadcast song intent via status update
               sendStatusUpdate({
                 isMuted: !isMicEnabled,
                 isSharingAudio: isSharing,
@@ -357,6 +357,17 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
             personVolumes={personVolumes}
             onPersonVolumeChange={handlePersonVolumeChange}
           />
+
+          {/* Random Wheel — fills remaining space in sidebar */}
+          <div
+            className="rounded-xl border p-3"
+            style={{ background: "var(--color-dark-surface)", borderColor: "var(--color-dark-border)" }}
+          >
+            <RandomWheel
+              participants={roomState.participants}
+              onPick={() => {}}
+            />
+          </div>
         </div>
       </div>
 

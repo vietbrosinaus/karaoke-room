@@ -1,9 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Mic, MicOff, Music, Globe, RotateCw } from "lucide-react";
+import { Mic, MicOff, Music, Globe } from "lucide-react";
 import type { Participant, ParticipantStatus, RoomState } from "~/types/room";
-import { RandomWheel } from "./RandomWheel";
 
 interface PeoplePanelProps {
   roomState: RoomState;
@@ -32,7 +31,6 @@ export function PeoplePanel({
 }: PeoplePanelProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [tab, setTab] = useState<"people" | "queue">("people");
-  const [showWheel, setShowWheel] = useState(false);
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [songIntent, setSongIntent] = useState("");
 
@@ -250,25 +248,6 @@ export function PeoplePanel({
           );
         })}
       </ul>
-      )}
-
-      {/* Random Wheel — below people list */}
-      {tab === "people" && roomState.participants.length >= 2 && (
-        <div className="border-t px-3 py-2" style={{ borderColor: "var(--color-dark-border)" }}>
-          <button
-            onClick={() => setShowWheel(!showWheel)}
-            className="w-full cursor-pointer rounded-lg py-1.5 text-[11px] font-medium transition-all hover:brightness-110"
-            style={{ background: showWheel ? "var(--color-primary-dim)" : "var(--color-dark-card)", color: showWheel ? "var(--color-primary)" : "var(--color-text-muted)" }}
-          >
-            <span className="flex items-center gap-1.5">{showWheel ? "Hide Wheel" : <><RotateCw size={12} /> Random Wheel</>}</span>
-          </button>
-          {showWheel && (
-            <RandomWheel
-              participants={roomState.participants}
-              onPick={() => setShowWheel(false)}
-            />
-          )}
-        </div>
       )}
 
       {/* Queue action */}

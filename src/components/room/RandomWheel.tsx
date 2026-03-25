@@ -14,7 +14,7 @@ export function RandomWheel({ participants, onPick }: RandomWheelProps) {
   const [winner, setWinner] = useState<Participant | null>(null);
   const wheelRef = useRef<HTMLDivElement>(null);
 
-  if (participants.length < 2) return null;
+  if (participants.length < 1) return null;
 
   const segmentAngle = 360 / participants.length;
 
