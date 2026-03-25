@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import type { Room } from "livekit-client";
 import type { RoomState } from "~/types/room";
+import { Mic, Music } from "lucide-react";
 import { AudioVisualizer } from "./AudioVisualizer";
 
 interface StageBannerProps {
@@ -53,7 +54,7 @@ export function StageBanner({
         className="flex items-center gap-3 rounded-xl border px-4 py-3"
         style={{ background: "var(--color-dark-surface)", borderColor: "var(--color-dark-border)" }}
       >
-        <span className="text-lg" style={{ opacity: 0.4 }}>🎤</span>
+        <Mic size={18} style={{ opacity: 0.4, color: "var(--color-text-muted)" }} />
         <span className="text-sm" style={{ color: "var(--color-text-muted)" }}>
           Nobody singing — join the queue!
         </span>
@@ -70,7 +71,7 @@ export function StageBanner({
         style={{ background: "var(--color-dark-surface)" }}
       >
         <div className="flex items-center gap-3">
-          <span className="text-lg">🎤</span>
+          <Mic size={18} style={{ color: "var(--color-primary)" }} />
           <div className="min-w-0 flex-1">
             <div className="flex items-baseline gap-2">
               <span className="text-sm font-bold" style={{ fontFamily: "var(--font-display)", color: "var(--color-text-primary)" }}>
@@ -124,7 +125,7 @@ export function StageBanner({
       {!isSharing ? (
         <div className="space-y-3">
           <div className="flex items-center gap-3">
-            <span className="text-xl">🎤</span>
+            <Mic size={20} style={{ color: "var(--color-primary)" }} />
             <div>
               <p className="text-sm font-bold" style={{ fontFamily: "var(--font-display)", color: "var(--color-text-primary)" }}>
                 Your Turn to Sing
@@ -161,7 +162,7 @@ export function StageBanner({
       ) : (
         <div className="space-y-3">
           <div className="flex items-center gap-3">
-            <span className="text-xl">🎤</span>
+            <Mic size={20} style={{ color: "var(--color-primary)" }} />
             <div className="min-w-0 flex-1">
               <p className="text-sm font-bold" style={{ fontFamily: "var(--font-display)", color: "var(--color-text-primary)" }}>
                 Sharing Audio
@@ -189,8 +190,8 @@ export function StageBanner({
           {/* Separate mic/music volume sliders */}
           {onMixMicGain && onMixMusicGain && (
             <div className="space-y-2">
-              <MixSlider label="Voice" icon="🎤" defaultValue={100} onChange={(v) => onMixMicGain(v / 100)} />
-              <MixSlider label="Music" icon="🎵" defaultValue={100} onChange={(v) => onMixMusicGain(v / 100)} />
+              <MixSlider label="Voice" icon={<Mic size={14} style={{ color: "var(--color-primary)" }} />} defaultValue={100} onChange={(v) => onMixMicGain(v / 100)} />
+              <MixSlider label="Music" icon={<Music size={14} style={{ color: "var(--color-accent)" }} />} defaultValue={100} onChange={(v) => onMixMusicGain(v / 100)} />
             </div>
           )}
 
@@ -218,12 +219,12 @@ export function StageBanner({
   );
 }
 
-function MixSlider({ label, icon, defaultValue, onChange }: { label: string; icon: string; defaultValue: number; onChange: (val: number) => void }) {
+function MixSlider({ label, icon, defaultValue, onChange }: { label: string; icon: React.ReactNode; defaultValue: number; onChange: (val: number) => void }) {
   const [value, setValue] = useState(defaultValue);
   const handleChange = (v: number) => { setValue(v); onChange(v); };
   return (
     <div className="flex items-center gap-2">
-      <span className="text-sm">{icon}</span>
+      {icon}
       <span className="w-10 text-[10px] uppercase" style={{ color: "var(--color-text-muted)" }}>{label}</span>
       <input type="range" min="0" max="150" value={value} onChange={(e) => handleChange(Number(e.target.value))} className="volume-slider flex-1" />
       <span className="w-6 text-right text-[10px] tabular-nums" style={{ color: "var(--color-text-muted)" }}>{value}</span>

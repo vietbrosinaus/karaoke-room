@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Mic, MicOff, Music, Globe } from "lucide-react";
+import { Mic, MicOff, Music, Globe, RotateCw } from "lucide-react";
 import type { Participant, ParticipantStatus, RoomState } from "~/types/room";
 import { RandomWheel } from "./RandomWheel";
 
@@ -260,7 +260,7 @@ export function PeoplePanel({
             className="w-full cursor-pointer rounded-lg py-1.5 text-[11px] font-medium transition-all hover:brightness-110"
             style={{ background: showWheel ? "var(--color-primary-dim)" : "var(--color-dark-card)", color: showWheel ? "var(--color-primary)" : "var(--color-text-muted)" }}
           >
-            {showWheel ? "Hide Wheel" : "🎡 Random Wheel"}
+            <span className="flex items-center gap-1.5">{showWheel ? "Hide Wheel" : <><RotateCw size={12} /> Random Wheel</>}</span>
           </button>
           {showWheel && (
             <RandomWheel

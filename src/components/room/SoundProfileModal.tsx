@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect } from "react";
+import { MessageSquare, Mic, Volume2 } from "lucide-react";
 import type { AudioDevice, MicMode } from "~/hooks/useAudioDevices";
 import type { MicCheckState } from "~/hooks/useLiveKit";
 import { VOICE_EFFECTS, type VoiceEffect, createEffectChain, type EffectChain } from "~/lib/voiceEffects";
@@ -103,7 +104,7 @@ export function SoundProfileModal({
           {/* === TALKING MODE === */}
           <section>
             <div className="mb-3 flex items-center gap-2">
-              <span className="text-base">💬</span>
+              <MessageSquare size={16} style={{ color: "var(--color-primary)" }} />
               <h3 className="text-xs font-bold uppercase tracking-widest" style={{ fontFamily: "var(--font-display)", color: "var(--color-primary)" }}>
                 Talking Mode
               </h3>
@@ -144,7 +145,7 @@ export function SoundProfileModal({
           {/* === SINGING MODE === */}
           <section>
             <div className="mb-3 flex items-center gap-2">
-              <span className="text-base">🎤</span>
+              <Mic size={16} style={{ color: "var(--color-accent)" }} />
               <h3 className="text-xs font-bold uppercase tracking-widest" style={{ fontFamily: "var(--font-display)", color: "var(--color-accent)" }}>
                 Singing Mode
               </h3>
@@ -224,7 +225,7 @@ export function SoundProfileModal({
           {/* === DEVICES === */}
           <section>
             <div className="mb-3 flex items-center gap-2">
-              <span className="text-base">🔊</span>
+              <Volume2 size={16} style={{ color: "var(--color-text-muted)" }} />
               <h3 className="text-xs font-bold uppercase tracking-widest" style={{ fontFamily: "var(--font-display)", color: "var(--color-text-muted)" }}>
                 Devices
               </h3>
