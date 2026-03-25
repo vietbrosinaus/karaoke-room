@@ -29,6 +29,7 @@ interface UseLiveKitParams {
 }
 
 export type MicCheckState = "idle" | "monitoring-talk" | "monitoring-sing" | "error";
+export type RecordingState = "idle" | "recording" | "stopped";
 
 interface UseLiveKitReturn {
   room: Room | null;
@@ -52,6 +53,13 @@ interface UseLiveKitReturn {
   voiceEffect: VoiceEffect;
   setVoiceEffect: (effect: VoiceEffect) => void;
   setEffectWetDry: (wet: number) => void;
+  // Recording
+  recordingState: RecordingState;
+  recordingDuration: number;
+  recordingBlob: Blob | null;
+  startRecording: () => void;
+  stopRecording: () => void;
+  clearRecording: () => void;
 }
 
 export function useLiveKit({
@@ -114,6 +122,15 @@ export function useLiveKit({
   const [voiceEffect, setVoiceEffectState] = useState<VoiceEffect>("none");
   const voiceEffectRef = useRef<VoiceEffect>("none");
   const effectWetDryRef = useRef(0.7); // tracks current wet/dry for singing mic check
+
+  // Recording: passive tap on mixDest stream
+  const [recordingState, setRecordingState] = useState<RecordingState>("idle");
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const [recordingBlob, setRecordingBlob] = useState<Blob | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const recordingChunksRef = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const recordingStartRef = useRef<number>(0);
 
   // --- Connect to LiveKit room ---
 
@@ -1102,6 +1119,82 @@ export function useLiveKit({
     }
   }, [cleanupMix]);
 
+  // --- Recording (passive tap on mix stream) ---
+
+  const stopRecordingInternal = useCallback(() => {
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+    if (recorderRef.current && recorderRef.current.state === "recording") {
+      recorderRef.current.stop();
+    }
+    recorderRef.current = null;
+  }, []);
+
+  const startRecording = useCallback(() => {
+    const dest = mixDestRef.current;
+    if (!dest || recordingState === "recording") return;
+
+    console.log("[LiveKit] Starting recording from mix stream");
+    recordingChunksRef.current = [];
+    setRecordingBlob(null);
+    setRecordingDuration(0);
+
+    const recorder = new MediaRecorder(dest.stream, {
+      mimeType: MediaRecorder.isTypeSupported("audio/webm;codecs=opus") ? "audio/webm;codecs=opus" : "audio/webm",
+    });
+
+    recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) recordingChunksRef.current.push(e.data);
+    };
+
+    recorder.onstop = () => {
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+      const chunks = recordingChunksRef.current;
+      if (chunks.length > 0) {
+        const blob = new Blob(chunks, { type: recorder.mimeType });
+        setRecordingBlob(blob);
+        setRecordingState("stopped");
+        console.log("[LiveKit] Recording stopped, blob size:", blob.size);
+      } else {
+        setRecordingState("idle");
+      }
+    };
+
+    recorder.start(1000); // collect chunks every 1s
+    recorderRef.current = recorder;
+    recordingStartRef.current = Date.now();
+    setRecordingState("recording");
+
+    // Update duration every second
+    recordingTimerRef.current = setInterval(() => {
+      setRecordingDuration(Math.floor((Date.now() - recordingStartRef.current) / 1000));
+    }, 1000);
+  }, [recordingState]);
+
+  const stopRecording = useCallback(() => {
+    stopRecordingInternal();
+  }, [stopRecordingInternal]);
+
+  const clearRecording = useCallback(() => {
+    setRecordingBlob(null);
+    setRecordingState("idle");
+    setRecordingDuration(0);
+    recordingChunksRef.current = [];
+  }, []);
+
+  // Auto-stop recording when sharing stops
+  useEffect(() => {
+    if (!isSharing && recordingState === "recording") {
+      console.log("[LiveKit] Sharing stopped — auto-stopping recording");
+      stopRecordingInternal();
+    }
+  }, [isSharing, recordingState, stopRecordingInternal]);
+
   // Auto-stop sharing when not my turn
   useEffect(() => {
     if (!isMyTurn && isSharing) {
@@ -1132,5 +1225,11 @@ export function useLiveKit({
     voiceEffect,
     setVoiceEffect,
     setEffectWetDry,
+    recordingState,
+    recordingDuration,
+    recordingBlob,
+    startRecording,
+    stopRecording,
+    clearRecording,
   };
 }

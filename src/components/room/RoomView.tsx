@@ -16,6 +16,7 @@ import { InviteCode } from "./InviteCode";
 import { StatusBar } from "./StatusBar";
 import { SettingsDrawer } from "./SettingsDrawer";
 import { SoundProfileModal } from "./SoundProfileModal";
+import { RecordingModal } from "./RecordingModal";
 import { playReactionSound } from "./ReactionBar";
 
 interface RoomViewProps {
@@ -95,6 +96,12 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
     voiceEffect,
     setVoiceEffect,
     setEffectWetDry,
+    recordingState,
+    recordingDuration,
+    recordingBlob,
+    startRecording,
+    stopRecording,
+    clearRecording,
   } = useLiveKit({
     roomCode,
     playerName,
@@ -369,6 +376,10 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
             onMuteAll={() => { sendMuteAll(); setSingerMutedAll(true); }}
             onUnmuteAll={() => { sendUnmuteAll(); setSingerMutedAll(false); }}
             isMutedAll={singerMutedAll}
+            recordingState={recordingState}
+            recordingDuration={recordingDuration}
+            onStartRecording={startRecording}
+            onStopRecording={stopRecording}
           />
 
           <Toolbar
@@ -494,6 +505,17 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
         onStopMicCheck={stopMicCheck}
         micCheckState={micCheckState}
       />
+
+      {/* Recording download modal */}
+      {recordingBlob && recordingState === "stopped" && (
+        <RecordingModal
+          open
+          blob={recordingBlob}
+          duration={recordingDuration}
+          songName={currentSong}
+          onClose={clearRecording}
+        />
+      )}
     </main>
   );
 }
