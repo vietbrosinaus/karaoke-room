@@ -248,8 +248,8 @@ export function StageBanner({
                 }}
                 title={isMutedAll ? "Unmute everyone" : "Mute all other microphones"}
               >
-                {isMutedAll ? <Volume2 size={12} /> : <VolumeX size={12} />}
-                {isMutedAll ? "Unmute" : "Mute All"}
+                {isMutedAll ? <VolumeX size={12} /> : <Volume2 size={12} />}
+                {isMutedAll ? "Unmute All" : "Mute All"}
               </button>
             )}
             <button
