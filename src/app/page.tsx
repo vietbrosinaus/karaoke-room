@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Mic, Users, Music, ArrowRight } from "lucide-react";
+import { getSavedName, saveName } from "~/lib/playerName";
 
 const CHARSET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const CODE_LENGTH = 6;
@@ -19,16 +20,24 @@ export default function Home() {
   const [name, setName] = useState("");
   const [error, setError] = useState("");
 
+  // Pre-fill name from localStorage
+  useEffect(() => {
+    const saved = getSavedName();
+    if (saved) setName(saved);
+  }, []);
+
   const handleCreate = () => {
     if (!name.trim()) { setError("Enter your name first"); return; }
-    router.push(`/room/${generateRoomCode()}?name=${encodeURIComponent(name.trim())}`);
+    saveName(name.trim());
+    router.push(`/room/${generateRoomCode()}`);
   };
 
   const handleJoin = () => {
     if (!name.trim()) { setError("Enter your name first"); return; }
     const code = joinCode.toUpperCase().trim();
     if (code.length !== CODE_LENGTH) { setError("Code must be 6 characters"); return; }
-    router.push(`/room/${code}?name=${encodeURIComponent(name.trim())}`);
+    saveName(name.trim());
+    router.push(`/room/${code}`);
   };
 
   return (
