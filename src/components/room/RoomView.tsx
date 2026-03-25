@@ -56,6 +56,7 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
     sendUnmuteAll,
     addToQueue,
     sendMixAdjust,
+    clearPendingMixAdjust,
     mutedBySinger,
     pendingMixAdjust,
     chatMessages,
@@ -173,18 +174,34 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
     }
   }, [roomState.currentSingerId, roomState.participants, participantStatus]);
 
-  // Handle incoming collaborative mix adjustments (singer receives these)
+  // Debounced broadcast of singer's local mix changes to listeners
+  const mixBroadcastRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const broadcastMix = useCallback((voice: number, music: number) => {
+    if (mixBroadcastRef.current) clearTimeout(mixBroadcastRef.current);
+    mixBroadcastRef.current = setTimeout(() => { sendMixAdjust(voice, music); }, 150);
+  }, [sendMixAdjust]);
+
+  // Handle incoming collaborative mix adjustments
   useEffect(() => {
     if (!pendingMixAdjust) return;
     const { fromName, voice, music } = pendingMixAdjust;
     const voicePercent = Math.round(voice * 100);
     const musicPercent = Math.round(music * 100);
-    setMixMicGain(voice);
-    setMixMusicGain(music);
-    setMixVoiceValue(voicePercent);
-    setMixMusicValue(musicPercent);
-    sendChat(`${fromName} adjusted mix — Voice ${voicePercent}%, Music ${musicPercent}%`);
-  }, [pendingMixAdjust, setMixMicGain, setMixMusicGain, sendChat]);
+
+    if (isMyTurn) {
+      // Singer receives listener's adjustment → apply to gain nodes + chat
+      setMixMicGain(voice);
+      setMixMusicGain(music);
+      setMixVoiceValue(voicePercent);
+      setMixMusicValue(musicPercent);
+      sendChat(`${fromName} adjusted mix — Voice ${voicePercent}%, Music ${musicPercent}%`);
+    } else {
+      // Listener receives singer's broadcast → sync sliders only (no gain, no chat)
+      setMixVoiceValue(voicePercent);
+      setMixMusicValue(musicPercent);
+    }
+    clearPendingMixAdjust();
+  }, [pendingMixAdjust, isMyTurn, setMixMicGain, setMixMusicGain, sendChat, clearPendingMixAdjust]);
 
   // LiveKit identity for status updates — must be before statusCtxRef
   const lkIdentity = room?.localParticipant?.identity ?? null;
@@ -395,8 +412,8 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
                 if (singerId) setPersonVolumes((prev) => ({ ...prev, [singerId]: vol }));
               }
             }}
-            onMixMicGain={(v) => { setMixMicGain(v); setMixVoiceValue(Math.round(v * 100)); }}
-            onMixMusicGain={(v) => { setMixMusicGain(v); setMixMusicValue(Math.round(v * 100)); }}
+            onMixMicGain={(v) => { setMixMicGain(v); setMixVoiceValue(Math.round(v * 100)); broadcastMix(v, mixMusicValue / 100); }}
+            onMixMusicGain={(v) => { setMixMusicGain(v); setMixMusicValue(Math.round(v * 100)); broadcastMix(mixVoiceValue / 100, v); }}
             mixVoiceValue={mixVoiceValue}
             mixMusicValue={mixMusicValue}
             ambientId="ambient-bg"

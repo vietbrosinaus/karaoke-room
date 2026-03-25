@@ -377,6 +377,9 @@ function ListenerMixControl({ voiceValue, musicValue, onAdjust }: { voiceValue: 
   useEffect(() => { setVoice(voiceValue); }, [voiceValue]);
   useEffect(() => { setMusic(musicValue); }, [musicValue]);
 
+  // Cleanup throttle on unmount
+  useEffect(() => () => { if (throttleRef.current) clearTimeout(throttleRef.current); }, []);
+
   const sendThrottled = (v: number, m: number) => {
     if (throttleRef.current) clearTimeout(throttleRef.current);
     throttleRef.current = setTimeout(() => { onAdjust(v / 100, m / 100); }, 100);

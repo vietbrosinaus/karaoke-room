@@ -35,6 +35,7 @@ interface UseRoomStateReturn {
   sendUnmuteAll: () => void;
   addToQueue: (targetPeerId: string) => void;
   sendMixAdjust: (voice: number, music: number) => void;
+  clearPendingMixAdjust: () => void;
   mutedBySinger: string | null;
   pendingMixAdjust: { fromName: string; voice: number; music: number } | null;
   chatMessages: ChatMessage[];
@@ -234,6 +235,10 @@ export function useRoomState({
     send({ type: "mix-adjust", voice, music });
   }, [send]);
 
+  const clearPendingMixAdjust = useCallback(() => {
+    setPendingMixAdjust(null);
+  }, []);
+
   const isMyTurn = myPeerId !== null && roomState.currentSingerId === myPeerId;
 
   return {
@@ -252,6 +257,7 @@ export function useRoomState({
     sendUnmuteAll,
     addToQueue,
     sendMixAdjust,
+    clearPendingMixAdjust,
     mutedBySinger,
     pendingMixAdjust,
     chatMessages,
