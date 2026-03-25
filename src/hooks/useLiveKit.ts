@@ -35,8 +35,8 @@ interface UseLiveKitReturn {
   isMicEnabled: boolean;
   toggleMic: () => Promise<void>;
   micCheckState: MicCheckState;
-  startTalkingMicCheck: (noiseCancellation: boolean) => void;
-  startSingingMicCheck: (noiseCancellation: boolean) => void;
+  startTalkingMicCheck: (noiseCancellation: boolean) => Promise<void>;
+  startSingingMicCheck: (noiseCancellation: boolean) => Promise<void>;
   isSharing: boolean;
   startSharing: () => Promise<void>;
   stopSharing: () => void;
@@ -98,6 +98,7 @@ export function useLiveKit({
   const effectChainRef = useRef<EffectChain | null>(null);
   const [voiceEffect, setVoiceEffectState] = useState<VoiceEffect>("none");
   const voiceEffectRef = useRef<VoiceEffect>("none");
+  const effectWetDryRef = useRef(0.7); // tracks current wet/dry for singing mic check
 
   // --- Connect to LiveKit room ---
 
@@ -496,9 +497,13 @@ export function useLiveKit({
     };
   }, []);
 
+  // Guard against concurrent mic checks (async race)
+  const micCheckInFlightRef = useRef(false);
+
   // Talking Mic Check: captures a FRESH mic with talking constraints, records YOUR voice only
   const startTalkingMicCheck = useCallback(async (noiseCancellation: boolean) => {
-    if (micCheckState !== "idle") return;
+    if (micCheckState !== "idle" || micCheckInFlightRef.current) return;
+    micCheckInFlightRef.current = true;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -510,17 +515,21 @@ export function useLiveKit({
         },
       });
       const track = stream.getAudioTracks()[0];
-      if (!track) { setMicCheckState("idle"); return; }
+      if (!track) { micCheckInFlightRef.current = false; setMicCheckState("idle"); return; }
       recordAndPlayback(track, "Talking mic check");
+      // micCheckInFlightRef resets when recording starts (state changes from idle)
+      micCheckInFlightRef.current = false;
     } catch (err) {
       console.error("[LiveKit] Talking mic check error:", err);
+      micCheckInFlightRef.current = false;
       setMicCheckState("idle");
     }
   }, [micCheckState, selectedInputDeviceId, recordAndPlayback]);
 
   // Singing Mic Check: captures FRESH mic → routes through voice effect chain → records effected output
   const startSingingMicCheck = useCallback(async (noiseCancellation: boolean) => {
-    if (micCheckState !== "idle") return;
+    if (micCheckState !== "idle" || micCheckInFlightRef.current) return;
+    micCheckInFlightRef.current = true;
     try {
       // 1. Capture raw mic
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -545,8 +554,8 @@ export function useLiveKit({
       source.connect(chain.input);
       chain.output.connect(dest);
 
-      // Apply current wet/dry if effect is active
-      // (chain starts with default values from the factory)
+      // Apply current wet/dry to match the live effect setting
+      chain.setWetDry?.(effectWetDryRef.current);
 
       const effectedTrack = dest.stream.getAudioTracks()[0];
       if (!effectedTrack) { ctx.close(); rawTrack.stop(); setMicCheckState("idle"); return; }
@@ -602,6 +611,7 @@ export function useLiveKit({
       };
     } catch (err) {
       console.error("[LiveKit] Singing mic check error:", err);
+      micCheckInFlightRef.current = false;
       setMicCheckState("idle");
     }
   }, [micCheckState, selectedInputDeviceId]);
@@ -682,6 +692,7 @@ export function useLiveKit({
   }, []);
 
   const setEffectWetDry = useCallback((wet: number) => {
+    effectWetDryRef.current = wet;
     effectChainRef.current?.setWetDry?.(wet);
   }, []);
 
