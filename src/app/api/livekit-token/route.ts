@@ -143,7 +143,6 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({
           token,
           url: keySet.url,
-          keySet: index + 1, // for debugging — which key set is active
         });
       } catch (err) {
         lastError = err;

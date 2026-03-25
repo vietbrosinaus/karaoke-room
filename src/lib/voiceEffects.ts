@@ -14,35 +14,12 @@ export interface EffectChain {
 }
 
 /**
- * Generate a synthetic impulse response for reverb.
- * Creates a decaying noise buffer that simulates a room.
- */
-function createImpulseResponse(
-  ctx: AudioContext,
-  duration: number,
-  decay: number,
-): AudioBuffer {
-  const sampleRate = ctx.sampleRate;
-  const length = sampleRate * duration;
-  const impulse = ctx.createBuffer(2, length, sampleRate);
-
-  for (let channel = 0; channel < 2; channel++) {
-    const data = impulse.getChannelData(channel);
-    for (let i = 0; i < length; i++) {
-      // Exponentially decaying white noise
-      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, decay);
-    }
-  }
-  return impulse;
-}
-
-/**
  * No effect — passthrough.
  */
 function createNone(ctx: AudioContext): EffectChain {
   const passthrough = ctx.createGain();
   passthrough.gain.value = 1;
-  return { input: passthrough, output: passthrough, cleanup: () => {} };
+  return { input: passthrough, output: passthrough, cleanup: () => { passthrough.disconnect(); } };
 }
 
 /**
