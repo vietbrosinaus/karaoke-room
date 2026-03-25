@@ -258,17 +258,3 @@ export function SoundProfileModal({
   );
 }
 
-function ToggleSwitch({ on, onChange, color }: { on: boolean; onChange: (on: boolean) => void; color: string }) {
-  return (
-    <button
-      onClick={() => onChange(!on)}
-      className="relative h-6 w-11 cursor-pointer rounded-full transition-all duration-200"
-      style={{ background: on ? color : "var(--color-dark-border)" }}
-    >
-      <span
-        className="absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all duration-200"
-        style={{ left: on ? "calc(100% - 22px)" : "2px" }}
-      />
-    </button>
-  );
-}

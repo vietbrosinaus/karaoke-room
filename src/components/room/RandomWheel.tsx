@@ -58,13 +58,13 @@ export function RandomWheel({ participants, onPick }: RandomWheelProps) {
 
   return (
     <div className="flex flex-col items-center gap-3 py-3">
-      {/* Pointer triangle */}
+      {/* Pointer triangle — points DOWN into the wheel (top = 0°) */}
       <div
         className="h-0 w-0"
         style={{
           borderLeft: "8px solid transparent",
           borderRight: "8px solid transparent",
-          borderTop: "12px solid var(--color-primary)",
+          borderBottom: "12px solid var(--color-primary)",
         }}
       />
 
