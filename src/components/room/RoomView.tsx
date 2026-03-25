@@ -96,6 +96,7 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
     voiceEffect,
     setVoiceEffect,
     setEffectWetDry,
+    mixMicStream,
     autoMix,
     setAutoMix,
     recordingState,
@@ -474,6 +475,7 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
         isSharing={isSharing}
         remoteParticipantCount={remoteParticipantCount}
         sessionStartTime={sessionStartTime}
+        mixMicStream={mixMicStream}
       />
 
       {/* Settings drawer */}

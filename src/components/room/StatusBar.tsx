@@ -11,6 +11,7 @@ interface StatusBarProps {
   isSharing: boolean;
   remoteParticipantCount: number;
   sessionStartTime: number; // Date.now() when room was entered
+  mixMicStream?: MediaStream | null;
 }
 
 export function StatusBar({
@@ -20,8 +21,9 @@ export function StatusBar({
   isSharing,
   remoteParticipantCount,
   sessionStartTime,
+  mixMicStream,
 }: StatusBarProps) {
-  const { micLevel, inboundLevel, isReceivingAudio } = useAudioLevel(room);
+  const { micLevel, inboundLevel, isReceivingAudio } = useAudioLevel(room, mixMicStream);
   const [elapsed, setElapsed] = useState(0);
 
   // Session timer

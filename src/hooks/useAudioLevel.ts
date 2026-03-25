@@ -55,7 +55,7 @@ function getTrackAudioLevel(track: MediaStreamTrack | undefined): number {
   return Math.sqrt(sum / data.length);
 }
 
-export function useAudioLevel(room: Room | null): AudioLevels {
+export function useAudioLevel(room: Room | null, mixMicStream?: MediaStream | null): AudioLevels {
   const [micLevel, setMicLevel] = useState(0);
   const [inboundLevel, setInboundLevel] = useState(0);
   const [isReceivingAudio, setIsReceivingAudio] = useState(false);
@@ -74,8 +74,14 @@ export function useAudioLevel(room: Room | null): AudioLevels {
       if (timestamp - lastPollRef.current >= 100) {
         lastPollRef.current = timestamp;
 
-        const micPub = room.localParticipant?.getTrackPublication(Track.Source.Microphone);
-        setMicLevel(micPub?.track ? getTrackAudioLevel(micPub.track.mediaStreamTrack) : 0);
+        // Use mix mic stream when sharing (managed mic is disabled), fall back to LiveKit track
+        const mixTrack = mixMicStream?.getAudioTracks()[0];
+        if (mixTrack && mixTrack.readyState === "live") {
+          setMicLevel(getTrackAudioLevel(mixTrack));
+        } else {
+          const micPub = room.localParticipant?.getTrackPublication(Track.Source.Microphone);
+          setMicLevel(micPub?.track ? getTrackAudioLevel(micPub.track.mediaStreamTrack) : 0);
+        }
 
         let maxRemoteLevel = 0;
         let hasRemoteAudio = false;

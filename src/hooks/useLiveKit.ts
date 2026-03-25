@@ -53,6 +53,8 @@ interface UseLiveKitReturn {
   voiceEffect: VoiceEffect;
   setVoiceEffect: (effect: VoiceEffect) => void;
   setEffectWetDry: (wet: number) => void;
+  // Mix mic stream (for status bar level meter during sharing)
+  mixMicStream: MediaStream | null;
   // Auto-mix (sidechain ducking)
   autoMix: boolean;
   setAutoMix: (on: boolean) => void;
@@ -899,6 +901,8 @@ export function useLiveKit({
           effectChainRef.current = chain;
 
           console.log("[LiveKit] Mic added to mix on the fly");
+          // Reconnect auto-mix analyser to new mic source if active
+          if (autoMixRef.current) connectAutoMixAnalyser();
         } else if (!newState && mixMicStreamRef.current) {
           // Remove mic from mix
           effectChainRef.current?.cleanup();
@@ -952,75 +956,99 @@ export function useLiveKit({
   }, []);
 
   // --- Auto-mix: sidechain ducking (lower music when voice detected) ---
+  // Measures RAW mic level (before effects) to avoid reverb tails keeping ducking active.
+  // Reads music gain from the live GainNode (not a snapshot) so slider changes are respected.
   const [autoMix, setAutoMixState] = useState(false);
   const autoMixRef = useRef(false);
   const autoMixTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const autoMixAnalyserRef = useRef<AnalyserNode | null>(null);
+  const autoMixBaseGainRef = useRef(0.7); // tracks the user's music slider position
+
+  // Called by setMixMusicGain to keep base gain in sync with slider
+  const updateAutoMixBaseGain = useCallback((val: number) => {
+    autoMixBaseGainRef.current = val;
+  }, []);
+
+  const connectAutoMixAnalyser = useCallback(() => {
+    // Connect analyser to raw mic source (before effects) to avoid reverb tails
+    const ctx = mixCtxRef.current;
+    const micSource = mixMicSourceRef.current;
+    if (!ctx || !micSource) return;
+
+    autoMixAnalyserRef.current?.disconnect();
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 256;
+    micSource.connect(analyser); // always raw mic, never chain output
+    autoMixAnalyserRef.current = analyser;
+  }, []);
 
   const setAutoMix = useCallback((on: boolean) => {
     setAutoMixState(on);
     autoMixRef.current = on;
 
     if (!on) {
-      // Stop auto-mix, restore music gain to slider value
       if (autoMixTimerRef.current) {
         clearInterval(autoMixTimerRef.current);
         autoMixTimerRef.current = null;
       }
       autoMixAnalyserRef.current?.disconnect();
       autoMixAnalyserRef.current = null;
+      // Restore music gain to slider value
+      const musicGain = mixSystemGainRef.current;
+      const ctx = mixCtxRef.current;
+      if (musicGain && ctx) {
+        musicGain.gain.setTargetAtTime(autoMixBaseGainRef.current, ctx.currentTime, 0.15);
+      }
       return;
     }
 
-    // Start auto-mix: attach analyser to mic source, poll voice level
     const ctx = mixCtxRef.current;
-    const micSource = mixMicSourceRef.current;
     const musicGain = mixSystemGainRef.current;
-    if (!ctx || !micSource || !musicGain) return;
+    if (!ctx || !musicGain) return;
 
-    const analyser = ctx.createAnalyser();
-    analyser.fftSize = 256;
-    // Connect analyser in parallel (doesn't affect audio path)
-    const chain = effectChainRef.current;
-    if (chain) {
-      chain.output.connect(analyser);
-    } else {
-      micSource.connect(analyser);
-    }
-    autoMixAnalyserRef.current = analyser;
+    // Snapshot current slider position as base
+    autoMixBaseGainRef.current = musicGain.gain.value;
 
+    connectAutoMixAnalyser();
+    if (!autoMixAnalyserRef.current) return;
+
+    const analyser = autoMixAnalyserRef.current;
     const dataArray = new Uint8Array(analyser.frequencyBinCount);
-    const musicBaseGain = musicGain.gain.value; // snapshot current slider position
     let smoothedLevel = 0;
 
     autoMixTimerRef.current = setInterval(() => {
       if (!autoMixRef.current) return;
-      analyser.getByteFrequencyData(dataArray);
+      const currentAnalyser = autoMixAnalyserRef.current;
+      const currentMusicGain = mixSystemGainRef.current;
+      const currentCtx = mixCtxRef.current;
+      if (!currentAnalyser || !currentMusicGain || !currentCtx) return;
 
-      // Calculate RMS energy of voice frequencies (100Hz-4kHz)
-      const binHz = (ctx.sampleRate / 2) / analyser.frequencyBinCount;
+      currentAnalyser.getByteFrequencyData(dataArray);
+
+      // RMS energy of voice frequencies (100Hz-4kHz) on raw mic signal
+      const binHz = (currentCtx.sampleRate / 2) / currentAnalyser.frequencyBinCount;
       const lowBin = Math.floor(100 / binHz);
       const highBin = Math.min(Math.floor(4000 / binHz), dataArray.length);
       let sum = 0;
       for (let i = lowBin; i < highBin; i++) sum += dataArray[i]! * dataArray[i]!;
       const rms = Math.sqrt(sum / (highBin - lowBin)) / 255;
 
-      // Smooth the level to avoid pumping
+      // Smooth to avoid pumping
       smoothedLevel = smoothedLevel * 0.7 + rms * 0.3;
 
-      // Duck music: voice loud → music at 30% of slider, voice quiet → music at 100% of slider
+      // Duck: voice loud → music at 30% of slider, voice quiet → 100% of slider
       const voiceThreshold = 0.08;
       const duckRatio = smoothedLevel > voiceThreshold
         ? Math.max(0.3, 1 - (smoothedLevel - voiceThreshold) * 3)
         : 1.0;
 
-      musicGain.gain.setTargetAtTime(
-        musicBaseGain * duckRatio,
-        ctx.currentTime,
-        0.15, // 150ms smoothing
+      currentMusicGain.gain.setTargetAtTime(
+        autoMixBaseGainRef.current * duckRatio,
+        currentCtx.currentTime,
+        0.15,
       );
-    }, 50); // 20Hz polling — smooth enough, negligible CPU
-  }, []);
+    }, 50);
+  }, [connectAutoMixAnalyser]);
 
   // Stop auto-mix when sharing stops
   useEffect(() => {
@@ -1049,7 +1077,8 @@ export function useLiveKit({
   }, []);
   const setMixMusicGain = useCallback((val: number) => {
     if (mixSystemGainRef.current) mixSystemGainRef.current.gain.value = val;
-  }, []);
+    updateAutoMixBaseGain(val); // keep auto-mix base in sync with slider
+  }, [updateAutoMixBaseGain]);
 
   // Swap voice effect live during sharing
   const setVoiceEffect = useCallback((effect: VoiceEffect) => {
@@ -1390,6 +1419,7 @@ export function useLiveKit({
     voiceEffect,
     setVoiceEffect,
     setEffectWetDry,
+    mixMicStream: mixMicStreamRef.current,
     autoMix,
     setAutoMix,
     recordingState,
