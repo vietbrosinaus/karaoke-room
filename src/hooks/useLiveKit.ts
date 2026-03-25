@@ -237,7 +237,7 @@ export function useLiveKit({
         if (cancelled) return;
 
         // Server may return a different URL per key set (different LiveKit projects)
-        const url = data.url || process.env.NEXT_PUBLIC_LIVEKIT_URL;
+        const url = (data.url && data.url.startsWith("wss://")) ? data.url : process.env.NEXT_PUBLIC_LIVEKIT_URL;
         if (!url) throw new Error("NEXT_PUBLIC_LIVEKIT_URL not set");
 
         console.log("[LiveKit] Connecting to", url, data.keySet ? `(key set #${data.keySet})` : "");
