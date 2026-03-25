@@ -176,31 +176,46 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
 
   // Debounced broadcast of singer's local mix changes to listeners
   const mixBroadcastRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isMyTurnRef = useRef(isMyTurn);
+  useEffect(() => {
+    isMyTurnRef.current = isMyTurn;
+    // Cancel pending broadcast if no longer singer
+    if (!isMyTurn && mixBroadcastRef.current) {
+      clearTimeout(mixBroadcastRef.current);
+      mixBroadcastRef.current = null;
+    }
+  }, [isMyTurn]);
+
   const broadcastMix = useCallback((voice: number, music: number) => {
     if (mixBroadcastRef.current) clearTimeout(mixBroadcastRef.current);
-    mixBroadcastRef.current = setTimeout(() => { sendMixAdjust(voice, music); }, 150);
+    mixBroadcastRef.current = setTimeout(() => {
+      if (isMyTurnRef.current) sendMixAdjust(voice, music);
+      mixBroadcastRef.current = null;
+    }, 150);
   }, [sendMixAdjust]);
 
   // Handle incoming collaborative mix adjustments
   useEffect(() => {
     if (!pendingMixAdjust) return;
-    const { fromName, voice, music } = pendingMixAdjust;
+    const { voice, music } = pendingMixAdjust;
     const voicePercent = Math.round(voice * 100);
     const musicPercent = Math.round(music * 100);
 
     if (isMyTurn) {
-      // Singer receives listener's adjustment → apply to gain nodes (no chat — adjuster sends it)
+      // Singer receives listener's adjustment → apply to gain nodes
       setMixMicGain(voice);
       setMixMusicGain(music);
       setMixVoiceValue(voicePercent);
       setMixMusicValue(musicPercent);
+      // Rebroadcast so all other listeners stay in sync
+      broadcastMix(voice, music);
     } else {
       // Listener receives singer's broadcast → sync sliders only (no gain, no chat)
       setMixVoiceValue(voicePercent);
       setMixMusicValue(musicPercent);
     }
     clearPendingMixAdjust();
-  }, [pendingMixAdjust, isMyTurn, setMixMicGain, setMixMusicGain, clearPendingMixAdjust]);
+  }, [pendingMixAdjust, isMyTurn, setMixMicGain, setMixMusicGain, clearPendingMixAdjust, broadcastMix]);
 
   // LiveKit identity for status updates — must be before statusCtxRef
   const lkIdentity = room?.localParticipant?.identity ?? null;
