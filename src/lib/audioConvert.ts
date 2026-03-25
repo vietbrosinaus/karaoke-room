@@ -8,11 +8,17 @@ const lamejs = require("lamejs");
 
 /**
  * Decode a WebM/Opus blob to raw PCM AudioBuffer.
+ * Uses a regular AudioContext since OfflineAudioContext requires knowing
+ * the exact length upfront (which we don't have before decoding).
  */
-async function decodeBlob(blob: Blob, sampleRate = 44100): Promise<AudioBuffer> {
+async function decodeBlob(blob: Blob): Promise<AudioBuffer> {
   const arrayBuffer = await blob.arrayBuffer();
-  const ctx = new OfflineAudioContext(2, 1, sampleRate);
-  return ctx.decodeAudioData(arrayBuffer);
+  const ctx = new AudioContext();
+  try {
+    return await ctx.decodeAudioData(arrayBuffer);
+  } finally {
+    void ctx.close();
+  }
 }
 
 /**

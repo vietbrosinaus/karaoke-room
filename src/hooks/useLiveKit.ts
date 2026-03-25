@@ -965,23 +965,23 @@ export function useLiveKit({
 
       // 2. Capture mic with singing NC setting (AudioContext mixing bypasses
       //    Chrome's system-level echo cancellation, Chromium bug #40226380)
+      // Always capture mic for the mix — even if currently muted.
+      // This ensures voice is in the mix (and recording) when the singer unmutes.
       const singNC = singingNCRef.current;
       let micStream: MediaStream | null = null;
-      if (isMicEnabledRef.current) {
-        try {
-          micStream = await navigator.mediaDevices.getUserMedia({
-            audio: {
-              deviceId: selectedInputDeviceId ? { exact: selectedInputDeviceId } : undefined,
-              echoCancellation: singNC,
-              noiseSuppression: singNC,
-              autoGainControl: singNC,
-              channelCount: 2,
-              sampleRate: 48000,
-            },
-          });
-        } catch (err) {
-          console.warn("[LiveKit] Mic capture failed — sharing music only:", err);
-        }
+      try {
+        micStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            deviceId: selectedInputDeviceId ? { exact: selectedInputDeviceId } : undefined,
+            echoCancellation: singNC,
+            noiseSuppression: singNC,
+            autoGainControl: singNC,
+            channelCount: 2,
+            sampleRate: 48000,
+          },
+        });
+      } catch (err) {
+        console.warn("[LiveKit] Mic capture failed — sharing music only:", err);
       }
 
       // 3. Mix into a single AudioContext destination (low-latency for send path)
