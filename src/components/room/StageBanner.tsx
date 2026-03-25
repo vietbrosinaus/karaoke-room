@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { Room } from "livekit-client";
 import type { RoomState } from "~/types/room";
 import { Mic, Music, VolumeX, Volume2, Circle, Square, Wand2 } from "lucide-react";
@@ -29,6 +29,10 @@ interface StageBannerProps {
   // Auto-mix
   autoMix?: boolean;
   onAutoMixChange?: (on: boolean) => void;
+  // Collaborative mix (listener can adjust singer's mix)
+  onMixAdjust?: (voice: number, music: number) => void;
+  mixVoiceValue?: number;
+  mixMusicValue?: number;
   // Recording
   recordingState?: RecordingState;
   recordingDuration?: number;
@@ -55,6 +59,9 @@ export function StageBanner({
   onMuteAll,
   onUnmuteAll,
   isMutedAll = false,
+  onMixAdjust,
+  mixVoiceValue = 100,
+  mixMusicValue = 70,
   autoMix = false,
   onAutoMixChange,
   recordingState = "idle",
@@ -111,13 +118,17 @@ export function StageBanner({
             <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>Live</span>
           </div>
         </div>
-        {/* Volume control for listener */}
+        {/* Local volume control */}
         {onMusicVolumeChange && (
           <div className="mt-2 flex items-center gap-2 border-t pt-2" style={{ borderColor: "var(--color-dark-border)" }}>
             <span className="text-[10px] uppercase tracking-wider" style={{ color: "var(--color-text-muted)" }}>Volume</span>
             <input type="range" min="0" max="100" value={Math.round(musicVolume * 100)} onChange={(e) => onMusicVolumeChange(Number(e.target.value) / 100)} className="volume-slider flex-1" />
             <span className="w-6 text-right text-[10px] tabular-nums" style={{ color: "var(--color-text-muted)" }}>{Math.round(musicVolume * 100)}</span>
           </div>
+        )}
+        {/* Collaborative mix — adjust singer's voice/music balance for everyone */}
+        {onMixAdjust && (
+          <ListenerMixControl voiceValue={mixVoiceValue} musicValue={mixMusicValue} onAdjust={onMixAdjust} />
         )}
 
       </div>
@@ -211,8 +222,8 @@ export function StageBanner({
           {/* Separate mic/music volume sliders + auto-mix */}
           {onMixMicGain && onMixMusicGain && (
             <div className="space-y-2">
-              <MixSlider label="Voice" icon={<Mic size={14} style={{ color: "var(--color-primary)" }} />} defaultValue={100} onChange={(v) => onMixMicGain(v / 100)} />
-              <MixSlider label="Music" icon={<Music size={14} style={{ color: "var(--color-accent)" }} />} defaultValue={70} onChange={(v) => onMixMusicGain(v / 100)} />
+              <MixSlider label="Voice" icon={<Mic size={14} style={{ color: "var(--color-primary)" }} />} value={mixVoiceValue} onChange={(v) => onMixMicGain(v / 100)} />
+              <MixSlider label="Music" icon={<Music size={14} style={{ color: "var(--color-accent)" }} />} value={mixMusicValue} onChange={(v) => onMixMusicGain(v / 100)} />
               {onAutoMixChange && (
                 <button
                   onClick={() => onAutoMixChange(!autoMix)}
@@ -301,14 +312,12 @@ function formatDuration(s: number) {
   return `${m}:${sec.toString().padStart(2, "0")}`;
 }
 
-function MixSlider({ label, icon, defaultValue, onChange }: { label: string; icon: React.ReactNode; defaultValue: number; onChange: (val: number) => void }) {
-  const [value, setValue] = useState(defaultValue);
-  const handleChange = (v: number) => { setValue(v); onChange(v); };
+function MixSlider({ label, icon, value, onChange }: { label: string; icon: React.ReactNode; value: number; onChange: (val: number) => void }) {
   return (
     <div className="flex items-center gap-2">
       {icon}
       <span className="w-10 text-[10px] uppercase" style={{ color: "var(--color-text-muted)" }}>{label}</span>
-      <input type="range" min="0" max="150" value={value} onChange={(e) => handleChange(Number(e.target.value))} className="volume-slider flex-1" />
+      <input type="range" min="0" max="150" value={value} onChange={(e) => onChange(Number(e.target.value))} className="volume-slider flex-1" />
       <span className="w-6 text-right text-[10px] tabular-nums" style={{ color: "var(--color-text-muted)" }}>{value}</span>
     </div>
   );
@@ -354,6 +363,49 @@ function SongNameInput({ initial, onSet }: { initial: string; onSet: (name: stri
         onBlur={submit}
         onKeyDown={(e) => { if (e.key === "Enter") submit(); if (e.key === "Escape") { setValue(initial); setEditing(false); } }}
       />
+    </div>
+  );
+}
+
+function ListenerMixControl({ voiceValue, musicValue, onAdjust }: { voiceValue: number; musicValue: number; onAdjust: (voice: number, music: number) => void }) {
+  const [expanded, setExpanded] = useState(false);
+  const [voice, setVoice] = useState(voiceValue);
+  const [music, setMusic] = useState(musicValue);
+  const throttleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Sync from external changes (e.g., singer adjusted)
+  useEffect(() => { setVoice(voiceValue); }, [voiceValue]);
+  useEffect(() => { setMusic(musicValue); }, [musicValue]);
+
+  // Cleanup throttle on unmount
+  useEffect(() => () => { if (throttleRef.current) clearTimeout(throttleRef.current); }, []);
+
+  const sendThrottled = (v: number, m: number) => {
+    if (throttleRef.current) clearTimeout(throttleRef.current);
+    throttleRef.current = setTimeout(() => { onAdjust(v / 100, m / 100); }, 100);
+  };
+
+  if (!expanded) {
+    return (
+      <button
+        onClick={() => setExpanded(true)}
+        className="mt-2 flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-lg border py-1.5 text-[10px] font-medium transition-all hover:brightness-110"
+        style={{ borderColor: "var(--color-dark-border)", color: "var(--color-text-muted)" }}
+      >
+        <Wand2 size={10} />
+        Help Mix
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-2 space-y-1.5 border-t pt-2" style={{ borderColor: "var(--color-dark-border)" }}>
+      <div className="flex items-center justify-between">
+        <span className="text-[9px] uppercase tracking-wider" style={{ color: "var(--color-text-muted)" }}>Adjust for everyone</span>
+        <button onClick={() => setExpanded(false)} className="cursor-pointer text-[9px]" style={{ color: "var(--color-text-muted)" }}>hide</button>
+      </div>
+      <MixSlider label="Voice" icon={<Mic size={12} style={{ color: "var(--color-primary)" }} />} value={voice} onChange={(v) => { setVoice(v); sendThrottled(v, music); }} />
+      <MixSlider label="Music" icon={<Music size={12} style={{ color: "var(--color-accent)" }} />} value={music} onChange={(v) => { setMusic(v); sendThrottled(voice, v); }} />
     </div>
   );
 }

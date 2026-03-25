@@ -55,7 +55,10 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
     sendMuteAll,
     sendUnmuteAll,
     addToQueue,
+    sendMixAdjust,
+    clearPendingMixAdjust,
     mutedBySinger,
+    pendingMixAdjust,
     chatMessages,
     participantStatus,
     reactions,
@@ -123,6 +126,10 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
   const [voiceVolume, setVoiceVolume] = useState(1);
   const [personVolumes, setPersonVolumes] = useState<Record<string, number>>({});
 
+  // Collaborative mix values (synced via PartyKit: singer broadcasts to listeners, listeners send to singer)
+  const [mixVoiceValue, setMixVoiceValue] = useState(100);
+  const [mixMusicValue, setMixMusicValue] = useState(70);
+
   const applyAllVolumes = useCallback(() => {
     document.querySelectorAll<HTMLAudioElement>('audio[id^="lk-audio-"]').forEach((el) => {
       if (el.dataset.lkType === "music") {
@@ -166,6 +173,49 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
       }
     }
   }, [roomState.currentSingerId, roomState.participants, participantStatus]);
+
+  // Debounced broadcast of singer's local mix changes to listeners
+  const mixBroadcastRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isMyTurnRef = useRef(isMyTurn);
+  useEffect(() => {
+    isMyTurnRef.current = isMyTurn;
+    // Cancel pending broadcast if no longer singer
+    if (!isMyTurn && mixBroadcastRef.current) {
+      clearTimeout(mixBroadcastRef.current);
+      mixBroadcastRef.current = null;
+    }
+  }, [isMyTurn]);
+
+  const broadcastMix = useCallback((voice: number, music: number) => {
+    if (mixBroadcastRef.current) clearTimeout(mixBroadcastRef.current);
+    mixBroadcastRef.current = setTimeout(() => {
+      if (isMyTurnRef.current) sendMixAdjust(voice, music);
+      mixBroadcastRef.current = null;
+    }, 150);
+  }, [sendMixAdjust]);
+
+  // Handle incoming collaborative mix adjustments
+  useEffect(() => {
+    if (!pendingMixAdjust) return;
+    const { voice, music } = pendingMixAdjust;
+    const voicePercent = Math.round(voice * 100);
+    const musicPercent = Math.round(music * 100);
+
+    if (isMyTurn) {
+      // Singer receives listener's adjustment → apply to gain nodes
+      setMixMicGain(voice);
+      setMixMusicGain(music);
+      setMixVoiceValue(voicePercent);
+      setMixMusicValue(musicPercent);
+      // Rebroadcast so all other listeners stay in sync
+      broadcastMix(voice, music);
+    } else {
+      // Listener receives singer's broadcast → sync sliders only (no gain, no chat)
+      setMixVoiceValue(voicePercent);
+      setMixMusicValue(musicPercent);
+    }
+    clearPendingMixAdjust();
+  }, [pendingMixAdjust, isMyTurn, setMixMicGain, setMixMusicGain, clearPendingMixAdjust, broadcastMix]);
 
   // LiveKit identity for status updates — must be before statusCtxRef
   const lkIdentity = room?.localParticipant?.identity ?? null;
@@ -376,12 +426,18 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
                 if (singerId) setPersonVolumes((prev) => ({ ...prev, [singerId]: vol }));
               }
             }}
-            onMixMicGain={setMixMicGain}
-            onMixMusicGain={setMixMusicGain}
+            onMixMicGain={(v) => { setMixMicGain(v); setMixVoiceValue(Math.round(v * 100)); broadcastMix(v, mixMusicValue / 100); }}
+            onMixMusicGain={(v) => { setMixMusicGain(v); setMixMusicValue(Math.round(v * 100)); broadcastMix(mixVoiceValue / 100, v); }}
+            mixVoiceValue={mixVoiceValue}
+            mixMusicValue={mixMusicValue}
             ambientId="ambient-bg"
             onMuteAll={() => { sendMuteAll(); setSingerMutedAll(true); }}
             onUnmuteAll={() => { sendUnmuteAll(); setSingerMutedAll(false); }}
             isMutedAll={singerMutedAll}
+            onMixAdjust={!isMyTurn ? (voice, music) => {
+              sendMixAdjust(voice, music);
+              sendChat(`adjusted mix — Voice ${Math.round(voice * 100)}%, Music ${Math.round(music * 100)}%`);
+            } : undefined}
             autoMix={autoMix}
             onAutoMixChange={setAutoMix}
             recordingState={recordingState}
