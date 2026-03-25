@@ -42,18 +42,20 @@ export function RandomWheel({ participants, onPick }: RandomWheelProps) {
 
     setRotation(totalRotation);
 
+    // Capture at spin time to prevent stale closure if participants change mid-spin
+    const spinParticipants = [...participants];
+    const spinSegmentAngle = 360 / spinParticipants.length;
+
     // After animation ends, determine winner
     setTimeout(() => {
       const normalizedAngle = totalRotation % 360;
-      // The pointer is at the top (0 degrees). Find which segment is there.
-      // Since the wheel rotates clockwise, the segment at (360 - normalizedAngle) is at the pointer
       const pointerAngle = (360 - (normalizedAngle % 360)) % 360;
-      const winnerIndex = Math.floor(pointerAngle / segmentAngle) % participants.length;
-      const picked = participants[winnerIndex]!;
+      const winnerIndex = Math.floor(pointerAngle / spinSegmentAngle) % spinParticipants.length;
+      const picked = spinParticipants[winnerIndex]!;
 
       setWinner(picked);
       setSpinning(false);
-    }, 3500); // match CSS transition duration
+    }, 3500);
   };
 
   return (
