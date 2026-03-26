@@ -18,6 +18,9 @@ import { SettingsDrawer } from "./SettingsDrawer";
 import { SoundProfileModal } from "./SoundProfileModal";
 import { RecordingModal } from "./RecordingModal";
 import { playReactionSound } from "./ReactionBar";
+import { WatchPlayer, type WatchPlayerApi } from "./WatchPlayer";
+import { WatchToolbar } from "./WatchToolbar";
+import { VideoQueue } from "./VideoQueue";
 
 interface RoomViewProps {
   roomCode: string;
@@ -65,7 +68,16 @@ export function RoomView({ roomCode, playerName, onRename, onNameRejected }: Roo
     chatMessages,
     participantStatus,
     reactions,
+    sendModeSwitch,
+    sendWatchQueueAdd,
+    sendWatchQueueRemove,
+    sendWatchSync,
+    sendWatchSkip,
+    sendWatchAdvance,
+    watchSync,
   } = useRoomState({ roomCode, playerName });
+
+  const [watchPlayerApi, setWatchPlayerApi] = useState<WatchPlayerApi | null>(null);
 
   const {
     inputDevices,
@@ -311,7 +323,7 @@ export function RoomView({ roomCode, playerName, onRename, onNameRejected }: Roo
 
 
   return (
-    <main className="relative flex h-dvh flex-col overflow-hidden">
+    <main data-mode={roomState.roomMode} className="relative flex h-dvh flex-col overflow-hidden">
       {/* Audio unlock prompt — dismisses on first click to satisfy autoplay policy */}
       <AudioUnlockOverlay />
 
@@ -319,7 +331,12 @@ export function RoomView({ roomCode, playerName, onRename, onNameRejected }: Roo
       <div
         id="ambient-bg"
         className="pointer-events-none fixed inset-0 transition-[background] duration-150"
-        style={{ background: "radial-gradient(ellipse 40% 40% at 20% 80%, rgba(139, 92, 246, 0.03), transparent), radial-gradient(ellipse 35% 35% at 80% 20%, rgba(245, 158, 11, 0.02), transparent)" }}
+        style={{
+          background:
+            roomState.roomMode === "watch"
+              ? "radial-gradient(ellipse 45% 45% at 18% 78%, rgba(212, 160, 23, 0.05), transparent), radial-gradient(ellipse 35% 35% at 78% 22%, rgba(245, 230, 200, 0.025), transparent)"
+              : "radial-gradient(ellipse 40% 40% at 20% 80%, rgba(139, 92, 246, 0.03), transparent), radial-gradient(ellipse 35% 35% at 80% 20%, rgba(245, 158, 11, 0.02), transparent)",
+        }}
       />
 
       {/* Header */}
@@ -345,6 +362,39 @@ export function RoomView({ roomCode, playerName, onRename, onNameRejected }: Roo
         </div>
 
         <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
+          {/* Mode toggle */}
+          <div
+            className="flex items-center rounded-full border p-1"
+            style={{ borderColor: "var(--color-dark-border)", background: "rgba(9, 9, 11, 0.25)" }}
+          >
+            <button
+              className="cursor-pointer rounded-full px-3 py-1.5 text-[11px] font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-50"
+              style={{
+                fontFamily: "var(--font-display)",
+                background: roomState.roomMode === "karaoke" ? "var(--color-primary-dim)" : "transparent",
+                color: roomState.roomMode === "karaoke" ? "var(--color-primary)" : "var(--color-text-muted)",
+              }}
+              disabled={roomState.roomMode === "watch" && roomState.watchCurrentVideoId !== null}
+              title={roomState.roomMode === "watch" && roomState.watchCurrentVideoId !== null ? "Stop the video to switch modes" : "Karaoke Mode"}
+              onClick={() => sendModeSwitch("karaoke")}
+            >
+              Karaoke
+            </button>
+            <button
+              className="cursor-pointer rounded-full px-3 py-1.5 text-[11px] font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-50"
+              style={{
+                fontFamily: "var(--font-display)",
+                background: roomState.roomMode === "watch" ? "var(--color-primary-dim)" : "transparent",
+                color: roomState.roomMode === "watch" ? "var(--color-primary)" : "var(--color-text-muted)",
+              }}
+              disabled={roomState.roomMode === "karaoke" && roomState.currentSingerId !== null}
+              title={roomState.roomMode === "karaoke" && roomState.currentSingerId !== null ? "Wait for the stage to be empty to switch modes" : "Watch Mode"}
+              onClick={() => sendModeSwitch("watch")}
+            >
+              Watch
+            </button>
+          </div>
+
           {/* Connection status */}
           <div className="flex items-center gap-1.5 text-xs" style={{ color: "var(--color-text-muted)" }}>
             <div
@@ -362,7 +412,7 @@ export function RoomView({ roomCode, playerName, onRename, onNameRejected }: Roo
           {/* Settings */}
           <button
             onClick={() => setSettingsOpen(true)}
-            className="cursor-pointer rounded-lg border p-2 transition-all hover:border-[var(--color-primary)] hover:scale-105"
+            className="cursor-pointer rounded-lg border p-2 transition-all hover:border-(--color-primary) hover:scale-105"
             style={{ borderColor: "var(--color-dark-border)", color: "var(--color-text-muted)" }}
             title="Settings"
           >
@@ -457,59 +507,83 @@ export function RoomView({ roomCode, playerName, onRename, onNameRejected }: Roo
         {/* Left: Stage + Toolbar + Chat */}
         <div className={`min-h-0 flex-1 flex-col gap-2 lg:flex lg:gap-3 ${mobileSection === "people" ? "hidden" : "flex"}`}>
           <div className={`flex-col gap-2 lg:flex lg:gap-3 ${mobileSection === "stage" ? "flex" : "hidden"}`}>
-              <StageBanner
-                room={room}
-                roomState={roomState}
-                isMyTurn={isMyTurn}
-                isSharing={isSharing}
-                onStartSharing={startSharing}
-                onStopSharing={stopSharing}
-                onFinishSinging={finishSinging}
-                audioError={sharingError}
-                singerSongName={
-                  roomState.currentSingerId
-                    ? participantStatus[roomState.currentSingerId]?.currentSong ?? null
-                    : null
-                }
-                canSing={browser.canSing}
-                musicVolume={musicVolume}
-                onMusicVolumeChange={(vol: number) => {
-                  setMusicVolume(vol);
-                  // Sync per-person volume for the singer too
-                  if (roomState.currentSingerId) {
-                    const singerStatus = participantStatus[roomState.currentSingerId];
-                    const singerId = singerStatus?.lkIdentity ?? roomState.participants.find((p) => p.id === roomState.currentSingerId)?.name ?? "";
-                    if (singerId) setPersonVolumes((prev) => ({ ...prev, [singerId]: vol }));
-                  }
-                }}
-                onMixMicGain={(v) => { setMixMicGain(v); setMixVoiceValue(Math.round(v * 100)); broadcastMix(v, mixMusicValue / 100); }}
-                onMixMusicGain={(v) => { setMixMusicGain(v); setMixMusicValue(Math.round(v * 100)); broadcastMix(mixVoiceValue / 100, v); }}
-                mixVoiceValue={mixVoiceValue}
-                mixMusicValue={mixMusicValue}
-                ambientId="ambient-bg"
-                onMuteAll={() => { sendMuteAll(); setSingerMutedAll(true); }}
-                onUnmuteAll={() => { sendUnmuteAll(); setSingerMutedAll(false); }}
-                isMutedAll={singerMutedAll}
-                singerAutoMix={roomState.currentSingerId ? participantStatus[roomState.currentSingerId]?.autoMix : false}
-                onMixAdjust={!isMyTurn ? sendMixAdjust : undefined}
-                onMixAdjustDone={!isMyTurn ? (voice, music) => {
-                  sendChat(`adjusted mix - Voice ${Math.round(voice * 100)}%, Music ${Math.round(music * 100)}%`);
-                } : undefined}
-                autoMix={autoMix}
-                onAutoMixChange={(on) => { setAutoMix(on); sendChat(on ? "enabled Auto Mix" : "disabled Auto Mix"); }}
-                recordingState={recordingState}
-                recordingDuration={recordingDuration}
-                onStartRecording={startRecording}
-                onStopRecording={stopRecording}
-              />
+              {roomState.roomMode === "watch" ? (
+                <>
+                  <WatchPlayer
+                    videoId={roomState.watchCurrentVideoId}
+                    title={roomState.watchCurrentTitle}
+                    isLeader={myPeerId !== null && roomState.watchLeaderId === myPeerId}
+                    watchSync={watchSync}
+                    onSync={sendWatchSync}
+                    onAdvance={sendWatchAdvance}
+                    onApi={setWatchPlayerApi}
+                  />
+                  <WatchToolbar
+                    roomState={roomState}
+                    myPeerId={myPeerId}
+                    playerApi={watchPlayerApi}
+                    onQueueAdd={sendWatchQueueAdd}
+                    onSync={sendWatchSync}
+                    onSkip={sendWatchSkip}
+                  />
+                </>
+              ) : (
+                <>
+                  <StageBanner
+                    room={room}
+                    roomState={roomState}
+                    isMyTurn={isMyTurn}
+                    isSharing={isSharing}
+                    onStartSharing={startSharing}
+                    onStopSharing={stopSharing}
+                    onFinishSinging={finishSinging}
+                    audioError={sharingError}
+                    singerSongName={
+                      roomState.currentSingerId
+                        ? participantStatus[roomState.currentSingerId]?.currentSong ?? null
+                        : null
+                    }
+                    canSing={browser.canSing}
+                    musicVolume={musicVolume}
+                    onMusicVolumeChange={(vol: number) => {
+                      setMusicVolume(vol);
+                      // Sync per-person volume for the singer too
+                      if (roomState.currentSingerId) {
+                        const singerStatus = participantStatus[roomState.currentSingerId];
+                        const singerId = singerStatus?.lkIdentity ?? roomState.participants.find((p) => p.id === roomState.currentSingerId)?.name ?? "";
+                        if (singerId) setPersonVolumes((prev) => ({ ...prev, [singerId]: vol }));
+                      }
+                    }}
+                    onMixMicGain={(v) => { setMixMicGain(v); setMixVoiceValue(Math.round(v * 100)); broadcastMix(v, mixMusicValue / 100); }}
+                    onMixMusicGain={(v) => { setMixMusicGain(v); setMixMusicValue(Math.round(v * 100)); broadcastMix(mixVoiceValue / 100, v); }}
+                    mixVoiceValue={mixVoiceValue}
+                    mixMusicValue={mixMusicValue}
+                    ambientId="ambient-bg"
+                    onMuteAll={() => { sendMuteAll(); setSingerMutedAll(true); }}
+                    onUnmuteAll={() => { sendUnmuteAll(); setSingerMutedAll(false); }}
+                    isMutedAll={singerMutedAll}
+                    singerAutoMix={roomState.currentSingerId ? participantStatus[roomState.currentSingerId]?.autoMix : false}
+                    onMixAdjust={!isMyTurn ? sendMixAdjust : undefined}
+                    onMixAdjustDone={!isMyTurn ? (voice, music) => {
+                      sendChat(`adjusted mix - Voice ${Math.round(voice * 100)}%, Music ${Math.round(music * 100)}%`);
+                    } : undefined}
+                    autoMix={autoMix}
+                    onAutoMixChange={(on) => { setAutoMix(on); sendChat(on ? "enabled Auto Mix" : "disabled Auto Mix"); }}
+                    recordingState={recordingState}
+                    recordingDuration={recordingDuration}
+                    onStartRecording={startRecording}
+                    onStopRecording={stopRecording}
+                  />
 
-              <Toolbar
-                isMicEnabled={isMicEnabled}
-                toggleMic={toggleMic}
-                micMode={micMode}
-                onSoundProfileOpen={() => setSoundProfileOpen(true)}
-                onReact={sendReaction}
-              />
+                  <Toolbar
+                    isMicEnabled={isMicEnabled}
+                    toggleMic={toggleMic}
+                    micMode={micMode}
+                    onSoundProfileOpen={() => setSoundProfileOpen(true)}
+                    onReact={sendReaction}
+                  />
+                </>
+              )}
           </div>
 
           {/* Chat - gets the most space */}
@@ -524,6 +598,24 @@ export function RoomView({ roomCode, playerName, onRename, onNameRejected }: Roo
 
         {/* Right: People panel + Random Wheel */}
         <div className={`w-full flex-col gap-3 pb-1 lg:flex lg:w-72 lg:min-h-0 lg:overflow-auto lg:pb-0 ${mobileSection === "people" ? "flex" : "hidden"}`}>
+          {roomState.roomMode === "watch" ? (
+            <VideoQueue
+              myPeerId={myPeerId}
+              current={
+                roomState.watchCurrentVideoId
+                  ? {
+                      videoId: roomState.watchCurrentVideoId,
+                      title: roomState.watchCurrentTitle,
+                      addedByName: roomState.watchLeaderId
+                        ? roomState.participants.find((p) => p.id === roomState.watchLeaderId)?.name ?? null
+                        : null,
+                    }
+                  : null
+              }
+              queue={roomState.watchQueue}
+              onRemove={sendWatchQueueRemove}
+            />
+          ) : null}
           <PeoplePanel
             roomState={roomState}
             myPeerId={myPeerId}
@@ -546,28 +638,29 @@ export function RoomView({ roomCode, playerName, onRename, onNameRejected }: Roo
             onPersonVolumeChange={handlePersonVolumeChange}
           />
 
-          {/* Random Wheel — fills remaining space in sidebar */}
-          <div
-            className="rounded-xl border p-3"
-            style={{ background: "var(--color-dark-surface)", borderColor: "var(--color-dark-border)" }}
-          >
-            <div className="-mx-3 mb-2 border-b px-3 pb-2" style={{ borderColor: "var(--color-dark-border)" }}>
-              <p className="text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: "var(--color-text-muted)" }}>
-                Get someone to sing
-              </p>
+          {roomState.roomMode !== "watch" ? (
+            <div
+              className="rounded-xl border p-3"
+              style={{ background: "var(--color-dark-surface)", borderColor: "var(--color-dark-border)" }}
+            >
+              <div className="-mx-3 mb-2 border-b px-3 pb-2" style={{ borderColor: "var(--color-dark-border)" }}>
+                <p className="text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: "var(--color-text-muted)" }}>
+                  Get someone to sing
+                </p>
+              </div>
+              <RandomWheel
+                participants={roomState.participants}
+                queue={roomState.queue}
+                currentSingerId={roomState.currentSingerId}
+                myName={playerName}
+                onPick={(p) => {
+                  if (p.id === myPeerId) joinQueue();
+                  else addToQueue(p.id);
+                  sendChat(`spun the wheel - ${p.name} is up next!`);
+                }}
+              />
             </div>
-            <RandomWheel
-              participants={roomState.participants}
-              queue={roomState.queue}
-              currentSingerId={roomState.currentSingerId}
-              myName={playerName}
-              onPick={(p) => {
-              if (p.id === myPeerId) joinQueue();
-              else addToQueue(p.id);
-              sendChat(`spun the wheel - ${p.name} is up next!`);
-            }}
-            />
-          </div>
+          ) : null}
         </div>
       </div>
 
@@ -659,7 +752,7 @@ function EditableName({ name, onRename }: { name: string; onRename?: (n: string)
     return (
       <button
         onClick={() => { setDraft(name); setEditing(true); }}
-        className="flex cursor-pointer items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-all hover:border-[var(--color-primary)] hover:scale-105"
+        className="flex cursor-pointer items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-all hover:border-(--color-primary) hover:scale-105"
         style={{ borderColor: "var(--color-dark-border)", color: "var(--color-text-primary)" }}
         title="Click to change name"
       >

@@ -27,9 +27,31 @@
   --color-neon-yellow: var(--color-accent);
 }
 
+[data-mode="watch"] {
+  --color-primary: #D4A017;
+  --color-primary-dim: rgba(212, 160, 23, 0.12);
+  --color-accent: #F5E6C8;
+  --color-accent-dim: rgba(245, 230, 200, 0.10);
+}
+
+main[data-mode] {
+  transition: background-color 0.4s ease, color 0.4s ease;
+}
+
 @keyframes fade-in {
   from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes watch-enter {
+  from { opacity: 0; transform: scale(0.98); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes watch-glow {
+  0% { box-shadow: 0 0 0 rgba(212, 160, 23, 0.0); }
+  50% { box-shadow: 0 0 22px rgba(212, 160, 23, 0.16); }
+  100% { box-shadow: 0 0 0 rgba(212, 160, 23, 0.0); }
 }
 
 @keyframes float-up {
@@ -63,6 +85,11 @@ body {
   color: var(--color-text-primary);
   font-family: var(--font-body);
   min-height: 100dvh;
+}
+
+.watch-glow {
+  border: 1px solid rgba(212, 160, 23, 0.22);
+  animation: watch-glow 6s ease-in-out infinite;
 }
 
 /* Tooltip */

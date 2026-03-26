@@ -43,6 +43,14 @@ interface UseRoomStateReturn {
   chatMessages: ChatMessage[];
   participantStatus: Record<string, ParticipantStatus>;
   reactions: Reaction[];
+  // Watch mode helpers
+  sendModeSwitch: (mode: "karaoke" | "watch") => void;
+  sendWatchQueueAdd: (videoId: string, title: string) => void;
+  sendWatchQueueRemove: (videoId: string) => void;
+  sendWatchSync: (state: "playing" | "paused", time: number) => void;
+  sendWatchSkip: () => void;
+  sendWatchAdvance: () => void;
+  watchSync: { state: "playing" | "paused"; time: number; from: string } | null;
 }
 
 const INITIAL_ROOM_STATE: RoomState = {
@@ -52,6 +60,13 @@ const INITIAL_ROOM_STATE: RoomState = {
   chatMessages: [],
   participantStatus: {},
   mutedBySinger: null,
+  roomMode: "karaoke",
+  watchQueue: [],
+  watchCurrentVideoId: null,
+  watchCurrentTitle: null,
+  watchLeaderId: null,
+  watchState: null,
+  watchTime: 0,
 };
 
 export function useRoomState({
@@ -67,6 +82,7 @@ export function useRoomState({
   const [mutedBySinger, setMutedBySinger] = useState<string | null>(null);
   const [pendingMixAdjust, setPendingMixAdjust] = useState<{ fromName: string; voice: number; music: number } | null>(null);
   const [nameTaken, setNameTaken] = useState<{ name: string; suggestions: string[] } | null>(null);
+  const [watchSync, setWatchSync] = useState<{ state: "playing" | "paused"; time: number; from: string } | null>(null);
   const reactionIdRef = useRef(0);
   const hasSentJoinRef = useRef(false);
   const onRawMessageRef = useRef(onRawMessage);
@@ -94,6 +110,13 @@ export function useRoomState({
           participantStatus: msg.state.participantStatus ?? {},
           queue: msg.state.queue ?? [],
           participants: msg.state.participants ?? [],
+          roomMode: msg.state.roomMode ?? "karaoke",
+          watchQueue: msg.state.watchQueue ?? [],
+          watchCurrentVideoId: msg.state.watchCurrentVideoId ?? null,
+          watchCurrentTitle: msg.state.watchCurrentTitle ?? null,
+          watchLeaderId: msg.state.watchLeaderId ?? null,
+          watchState: msg.state.watchState ?? null,
+          watchTime: msg.state.watchTime ?? 0,
         };
         setRoomState(state);
         // Sync mutedBySinger from server state (persisted across reconnects)
@@ -107,6 +130,9 @@ export function useRoomState({
         }
         break;
       }
+      case "watch-sync":
+        setWatchSync({ state: msg.state, time: msg.time, from: msg.from });
+        break;
       case "participant-status":
         setParticipantStatus((prev) => ({
           ...prev,
@@ -243,6 +269,30 @@ export function useRoomState({
     send({ type: "mix-adjust", voice, music });
   }, [send]);
 
+  const sendModeSwitch = useCallback((mode: "karaoke" | "watch") => {
+    send({ type: "mode-switch", mode });
+  }, [send]);
+
+  const sendWatchQueueAdd = useCallback((videoId: string, title: string) => {
+    send({ type: "watch-queue-add", videoId, title });
+  }, [send]);
+
+  const sendWatchQueueRemove = useCallback((videoId: string) => {
+    send({ type: "watch-queue-remove", videoId });
+  }, [send]);
+
+  const sendWatchSync = useCallback((state: "playing" | "paused", time: number) => {
+    send({ type: "watch-sync", state, time });
+  }, [send]);
+
+  const sendWatchSkip = useCallback(() => {
+    send({ type: "watch-skip" });
+  }, [send]);
+
+  const sendWatchAdvance = useCallback(() => {
+    send({ type: "watch-advance" });
+  }, [send]);
+
   const clearPendingMixAdjust = useCallback(() => {
     setPendingMixAdjust(null);
   }, []);
@@ -277,5 +327,12 @@ export function useRoomState({
     chatMessages,
     participantStatus,
     reactions,
+    sendModeSwitch,
+    sendWatchQueueAdd,
+    sendWatchQueueRemove,
+    sendWatchSync,
+    sendWatchSkip,
+    sendWatchAdvance,
+    watchSync,
   };
 }

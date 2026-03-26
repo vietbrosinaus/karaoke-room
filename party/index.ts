@@ -1,5 +1,5 @@
 import type * as Party from "partykit/server";
-import type { ChatMessage, ClientMessage, ParticipantStatus, RoomState, ServerMessage, SignalPayload } from "./types";
+import type { ChatMessage, ClientMessage, ParticipantStatus, RoomState, ServerMessage, SignalPayload, WatchQueueItem } from "./types";
 
 interface ParticipantEntry {
   name: string;
@@ -14,6 +14,7 @@ const ALLOWED_EMOJIS = new Set(["🔥", "👏", "😍", "🎵", "💯", "🙌", 
 const HEARTBEAT_INTERVAL_MS = 15_000; // ping every 15s
 const HEARTBEAT_TIMEOUT_MS = 40_000;  // evict after 40s of no pong
 const SINGER_TIMEOUT_MS = 60_000;     // auto-advance queue after 60s of inactive singer
+const WATCH_MAX_QUEUE_ITEMS = 20;
 
 export default class KaraokeRoom implements Party.Server {
   participants: Map<string, ParticipantEntry> = new Map();
@@ -22,6 +23,15 @@ export default class KaraokeRoom implements Party.Server {
   chatMessages: ChatMessage[] = [];
   participantStatus: Map<string, ParticipantStatus> = new Map();
   mutedBySinger: string | null = null; // persisted so reconnecting clients get correct state
+
+  // Watch mode state (YouTube watch party)
+  roomMode: "karaoke" | "watch" = "karaoke";
+  watchQueue: WatchQueueItem[] = [];
+  watchCurrentVideoId: string | null = null;
+  watchCurrentTitle: string | null = null;
+  watchLeaderId: string | null = null; // peerId
+  watchState: "playing" | "paused" | null = null;
+  watchTime = 0;
 
   // Heartbeat: track last pong time per connection
   private lastPong: Map<string, number> = new Map();
@@ -91,6 +101,9 @@ export default class KaraokeRoom implements Party.Server {
       participants: this.participants.size,
       queue: this.queue.length,
       hasSinger: this.currentSingerId !== null,
+      roomMode: this.roomMode,
+      watchQueue: this.watchQueue.length,
+      hasWatchVideo: this.watchCurrentVideoId !== null,
     }), {
       headers: { "Content-Type": "application/json" },
     });
@@ -167,6 +180,24 @@ export default class KaraokeRoom implements Party.Server {
       case "mix-adjust":
         this.handleMixAdjust(sender, msg.voice, msg.music);
         break;
+      case "mode-switch":
+        this.handleModeSwitch(sender, msg.mode);
+        break;
+      case "watch-queue-add":
+        this.handleWatchQueueAdd(sender, msg.videoId, msg.title);
+        break;
+      case "watch-queue-remove":
+        this.handleWatchQueueRemove(sender, msg.videoId);
+        break;
+      case "watch-sync":
+        this.handleWatchSync(sender, msg.state, msg.time);
+        break;
+      case "watch-skip":
+        this.handleWatchSkip(sender);
+        break;
+      case "watch-advance":
+        this.handleWatchAdvance(sender);
+        break;
       default:
         this.send(sender, { type: "error", message: "Unknown message type" });
     }
@@ -196,6 +227,11 @@ export default class KaraokeRoom implements Party.Server {
     this.participantStatus.delete(peerId);
     this.lastPong.delete(peerId);
 
+    // If they were the watch leader, reassign
+    if (this.watchLeaderId === peerId) {
+      this.watchLeaderId = this.pickFallbackWatchLeaderId();
+    }
+
     // Remove from queue
     this.queue = this.queue.filter((id) => id !== peerId);
 
@@ -214,6 +250,8 @@ export default class KaraokeRoom implements Party.Server {
       this.chatMessages = [];
       this.participantStatus.clear();
       this.lastPong.clear();
+      this.roomMode = "karaoke";
+      this.wipeWatchState();
       this.stopHeartbeat();
       if (this.singerTimer) clearTimeout(this.singerTimer);
       this.singerTimer = null;
@@ -399,6 +437,184 @@ export default class KaraokeRoom implements Party.Server {
     });
   }
 
+  private broadcastSystemChat(text: string) {
+    const trimmedText = text.trim().slice(0, MAX_CHAT_LENGTH);
+    if (!trimmedText) return;
+    const chatMsg: ChatMessage = {
+      from: "system",
+      fromName: "KaraOK",
+      text: trimmedText,
+      timestamp: Date.now(),
+    };
+    this.chatMessages.push(chatMsg);
+    if (this.chatMessages.length > MAX_CHAT_MESSAGES) {
+      this.chatMessages.shift();
+    }
+    this.broadcast({
+      type: "chat",
+      from: chatMsg.from,
+      fromName: chatMsg.fromName,
+      text: chatMsg.text,
+      timestamp: chatMsg.timestamp,
+    });
+  }
+
+  // ── Watch Mode Handlers ────────────────────────────────────
+
+  private handleModeSwitch(sender: Party.Connection, mode: "karaoke" | "watch") {
+    const participant = this.participants.get(sender.id);
+    if (!participant) {
+      this.send(sender, { type: "error", message: "Must join the room before switching modes" });
+      return;
+    }
+
+    if (mode === this.roomMode) return;
+
+    if (mode === "watch") {
+      // Prevent switching while someone is singing
+      if (this.currentSingerId !== null) {
+        this.send(sender, { type: "error", message: "Cannot switch modes while someone is on stage" });
+        return;
+      }
+      this.roomMode = "watch";
+      // Start clean when entering watch mode
+      this.wipeWatchState();
+    } else {
+      // Prevent switching while a video is playing
+      if (this.watchCurrentVideoId !== null) {
+        this.send(sender, { type: "error", message: "Cannot switch modes while a video is playing" });
+        return;
+      }
+      this.roomMode = "karaoke";
+      // Always wipe any queued videos when leaving watch mode
+      this.wipeWatchState();
+    }
+
+    this.handleChat(sender, `switched to ${mode === "watch" ? "Watch" : "Karaoke"} Mode`);
+    this.broadcastState();
+  }
+
+  private handleWatchQueueAdd(sender: Party.Connection, videoId: string, title: string) {
+    const participant = this.participants.get(sender.id);
+    if (!participant) return;
+    if (this.roomMode !== "watch") {
+      this.send(sender, { type: "error", message: "Not in Watch Mode" });
+      return;
+    }
+
+    const trimmedVideoId = String(videoId ?? "").trim();
+    const trimmedTitle = String(title ?? "").trim().slice(0, 120);
+    if (!trimmedVideoId) return;
+    if (!trimmedTitle) return;
+
+    if (this.watchQueue.length >= WATCH_MAX_QUEUE_ITEMS) {
+      this.send(sender, { type: "error", message: "Watch queue is full" });
+      return;
+    }
+
+    this.watchQueue.push({
+      videoId: trimmedVideoId,
+      title: trimmedTitle,
+      addedBy: sender.id,
+      addedByName: participant.name,
+    });
+
+    // Auto-start if nothing playing
+    if (this.watchCurrentVideoId === null) {
+      this.startNextWatchVideo();
+    }
+
+    this.handleChat(sender, `queued "${trimmedTitle}"`);
+    this.broadcastState();
+  }
+
+  private handleWatchQueueRemove(sender: Party.Connection, videoId: string) {
+    const participant = this.participants.get(sender.id);
+    if (!participant) return;
+    if (this.roomMode !== "watch") return;
+
+    const vid = String(videoId ?? "").trim();
+    if (!vid) return;
+    if (this.watchCurrentVideoId === vid) return;
+
+    const idx = this.watchQueue.findIndex((q) => q.videoId === vid && q.addedBy === sender.id);
+    if (idx === -1) return;
+    const [removed] = this.watchQueue.splice(idx, 1);
+    if (removed) {
+      this.handleChat(sender, `removed "${removed.title}" from the queue`);
+      this.broadcastState();
+    }
+  }
+
+  private handleWatchSync(sender: Party.Connection, state: "playing" | "paused", time: number) {
+    const participant = this.participants.get(sender.id);
+    if (!participant) return;
+    if (this.roomMode !== "watch") return;
+    if (!this.watchCurrentVideoId) return;
+    if (!Number.isFinite(time)) return;
+
+    const clampedTime = Math.max(0, time);
+    const prevState = this.watchState;
+    const nextState: "playing" | "paused" = state === "paused" ? "paused" : "playing";
+
+    // If state changed, accept from anyone (play/pause command)
+    if (prevState !== nextState) {
+      this.watchState = nextState;
+      this.watchTime = clampedTime;
+      this.broadcast(
+        { type: "watch-sync", state: nextState, time: clampedTime, from: participant.name },
+      );
+      this.handleChat(sender, `${nextState === "paused" ? "paused" : "resumed"} the video`);
+      return;
+    }
+
+    // If state did not change, treat as a position heartbeat (leader only)
+    if (this.watchLeaderId && sender.id !== this.watchLeaderId) return;
+    if (!this.watchLeaderId) this.watchLeaderId = sender.id;
+
+    this.watchTime = clampedTime;
+    this.broadcast(
+      { type: "watch-sync", state: nextState, time: clampedTime, from: participant.name },
+    );
+  }
+
+  private handleWatchSkip(sender: Party.Connection) {
+    const participant = this.participants.get(sender.id);
+    if (!participant) return;
+    if (this.roomMode !== "watch") return;
+    if (!this.watchCurrentVideoId) return;
+
+    const prevTitle = this.watchCurrentTitle;
+    this.watchCurrentVideoId = null;
+    this.watchCurrentTitle = null;
+    this.watchState = null;
+    this.watchTime = 0;
+    this.watchLeaderId = null;
+
+    this.handleChat(sender, `skipped${prevTitle ? ` "${prevTitle}"` : ""}`);
+    this.startNextWatchVideo();
+    this.broadcastState();
+  }
+
+  private handleWatchAdvance(sender: Party.Connection) {
+    const participant = this.participants.get(sender.id);
+    if (!participant) return;
+    if (this.roomMode !== "watch") return;
+    if (!this.watchCurrentVideoId) return;
+
+    // Leader only
+    if (this.watchLeaderId && sender.id !== this.watchLeaderId) return;
+
+    this.watchCurrentVideoId = null;
+    this.watchCurrentTitle = null;
+    this.watchState = null;
+    this.watchTime = 0;
+    this.watchLeaderId = null;
+
+    this.startNextWatchVideo();
+    this.broadcastState();
+  }
+
   private handleReaction(sender: Party.Connection, emoji: string) {
     const participant = this.participants.get(sender.id);
     if (!participant) return;
@@ -523,6 +739,7 @@ export default class KaraokeRoom implements Party.Server {
   // ── Helpers ─────────────────────────────────────────────────
 
   private promoteNextSinger() {
+    if (this.roomMode === "watch") return;
     if (this.currentSingerId !== null) return;
     // Clear mute-all when no singer is active
     this.mutedBySinger = null;
@@ -561,7 +778,46 @@ export default class KaraokeRoom implements Party.Server {
       chatMessages: [...this.chatMessages],
       participantStatus,
       mutedBySinger: this.mutedBySinger,
+      roomMode: this.roomMode,
+      watchQueue: [...this.watchQueue],
+      watchCurrentVideoId: this.watchCurrentVideoId,
+      watchCurrentTitle: this.watchCurrentTitle,
+      watchLeaderId: this.watchLeaderId,
+      watchState: this.watchState,
+      watchTime: this.watchTime,
     };
+  }
+
+  private wipeWatchState() {
+    this.watchQueue = [];
+    this.watchCurrentVideoId = null;
+    this.watchCurrentTitle = null;
+    this.watchLeaderId = null;
+    this.watchState = null;
+    this.watchTime = 0;
+  }
+
+  private pickFallbackWatchLeaderId(): string | null {
+    // Prefer current video's submitter if they are connected (watchLeaderId is also set to submitter on start)
+    if (this.watchLeaderId && this.participants.has(this.watchLeaderId)) return this.watchLeaderId;
+    for (const [id] of this.participants) return id;
+    return null;
+  }
+
+  private startNextWatchVideo() {
+    if (this.watchCurrentVideoId !== null) return;
+    const next = this.watchQueue.shift();
+    if (!next) {
+      this.wipeWatchState();
+      this.broadcastSystemChat("Watch queue finished");
+      return;
+    }
+    this.watchCurrentVideoId = next.videoId;
+    this.watchCurrentTitle = next.title;
+    this.watchLeaderId = this.participants.has(next.addedBy) ? next.addedBy : this.pickFallbackWatchLeaderId();
+    this.watchState = "playing";
+    this.watchTime = 0;
+    this.broadcastSystemChat(`Now playing: "${next.title}"`);
   }
 
   private broadcastState() {
