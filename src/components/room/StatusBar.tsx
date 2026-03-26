@@ -97,20 +97,16 @@ export function StatusBar({
         <span>Session: {timeStr}</span>
       </div>
 
-      {/* Quota usage */}
+      {/* Session participant-minutes (this session only, not total quota) */}
       <div
         className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs"
         style={{
           background: "var(--color-dark-card)",
-          color:
-            participantMinutes > 400
-              ? "var(--color-neon-pink)"
-              : "var(--color-text-secondary)",
+          color: "var(--color-text-secondary)",
         }}
-        title={`LiveKit free tier: 500 participant-minutes/month. Current session: ~${participantMinutes} p-min used.`}
+        title={`Participant-minutes used this session. LiveKit free tier: 5,000 p-min/month (shared across all projects). No API to check remaining.`}
       >
         <span>~{participantMinutes} p-min</span>
-        <span style={{ opacity: 0.5 }}>/ 500</span>
       </div>
     </div>
   );
