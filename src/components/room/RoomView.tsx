@@ -303,10 +303,6 @@ export function RoomView({ roomCode, playerName, onRename, onNameRejected }: Roo
   // Auto-switch to singing mode ONCE when becoming the singer
   const wasMyTurnRef = useRef(false);
   useEffect(() => {
-    // In Watch Mode, keep the mic mode in "Talk" unless you're actively on stage.
-    if (roomState.roomMode === "watch" && !isMyTurn && micMode !== "voice") {
-      setMicMode("voice");
-    }
     if (isMyTurn && !wasMyTurnRef.current) {
       wasMyTurnRef.current = true;
       if (micMode === "voice") setMicMode("raw");
@@ -318,7 +314,7 @@ export function RoomView({ roomCode, playerName, onRename, onNameRejected }: Roo
       if (micMode === "raw") setMicMode("voice");
     }
     if (!isMyTurn) wasMyTurnRef.current = false;
-  }, [isMyTurn, micMode, roomState.roomMode, setMicMode]);
+  }, [isMyTurn, micMode, setMicMode]);
 
   // Send status updates (includes LiveKit identity + auto-mix state)
   useEffect(() => {
