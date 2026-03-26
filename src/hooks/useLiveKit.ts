@@ -12,6 +12,7 @@ import {
   type RoomOptions,
   type LocalTrackPublication,
   AudioPresets,
+  DisconnectReason,
 } from "livekit-client";
 
 import type { MicMode } from "./useAudioDevices";
@@ -263,11 +264,14 @@ export function useLiveKit({
       }
     });
 
-    room.on(RoomEvent.Disconnected, () => {
-      console.log("[LiveKit] Disconnected");
+    room.on(RoomEvent.Disconnected, (reason?: DisconnectReason) => {
+      console.log("[LiveKit] Disconnected, reason:", reason);
       if (!cancelled) {
         setIsConnected(false);
-        setError("Disconnected - the room may have hit its session limit. Ask others to create a new room, or create one yourself.");
+        // Don't show error for client-initiated disconnects (page refresh, navigation)
+        if (reason !== DisconnectReason.CLIENT_INITIATED) {
+          setError("Disconnected - the room may have hit its session limit. Ask others to create a new room, or create one yourself.");
+        }
       }
     });
 
