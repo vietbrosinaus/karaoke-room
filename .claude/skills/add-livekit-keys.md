@@ -60,26 +60,27 @@ done
 gh secret set LIVEKIT_URL_N --body "WSS_URL_VALUE" --repo vietbrosinaus/karaoke-room
 ```
 
-### Step 4: Extend health check matrix (if key > 5)
+### Step 4: Extend health check workflow
 
-The health-check.yml workflow matrix currently supports keys 1-5. If adding key 6+, add a new entry to the matrix in `.github/workflows/health-check.yml`:
+Add the new key to `.github/workflows/health-livekit.yml`. Three edits needed:
 
+1. Add to the matrix `include` list:
 ```yaml
-- name: Key N
-  secret_key: LIVEKIT_URL_N
+          - name: Key N
+            secret_key: LIVEKIT_URL_N
 ```
 
-And add the corresponding env mapping in the step:
+2. Add the env mapping in the `Check LiveKit` step:
 ```yaml
-LK_URL_N: ${{ secrets.LIVEKIT_URL_N }}
+          LK_URL_N: ${{ secrets.LIVEKIT_URL_N }}
 ```
 
-And in the case statement:
+3. Add to the case statement:
 ```bash
-LIVEKIT_URL_N) LK_URL="$LK_URL_N" ;;
+            LIVEKIT_URL_N) LK_URL="$LK_URL_N" ;;
 ```
 
-Commit and push the workflow change.
+Commit and push. The badge will automatically update to show `N/N healthy` on the next run.
 
 ### Step 5: Redeploy
 
