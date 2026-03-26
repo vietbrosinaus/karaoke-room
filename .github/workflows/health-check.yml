@@ -15,7 +15,9 @@ jobs:
       - name: Check production site
         run: |
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://karaoke-room.vercel.app)
-          if [ "$STATUS" -ne 200 ]; then
+          if [ "$STATUS" -eq 429 ]; then
+            echo "::warning::Vercel is rate-limited (429) - service is up but throttled"
+          elif [ "$STATUS" -ne 200 ]; then
             echo "::error::Vercel returned HTTP $STATUS"
             exit 1
           fi
@@ -115,5 +117,8 @@ jobs:
           if [ "$STATUS" -eq 000 ] || [ "$STATUS" -ge 500 ]; then
             echo "::error::${{ matrix.name }} returned $STATUS"
             exit 1
+          fi
+          if [ "$STATUS" -eq 429 ]; then
+            echo "::warning::${{ matrix.name }} is rate-limited (429) - service is up but throttled"
           fi
           echo "${{ matrix.name }}: OK (responded $STATUS)"
