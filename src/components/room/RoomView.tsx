@@ -669,7 +669,7 @@ export function RoomView({ roomCode, playerName, onRename, onNameRejected }: Roo
         </div>
 
         {/* Desktop vertical resizer between main and sidebar */}
-        <div className="hidden lg:block">
+        <div className="hidden lg:block flex-none">
           <div
             onMouseDown={paneSplit.onMouseDown}
             className="group h-full cursor-col-resize"
@@ -683,8 +683,8 @@ export function RoomView({ roomCode, playerName, onRename, onNameRejected }: Roo
 
         {/* Right: People panel + Random Wheel */}
         <div
-          className={`w-full flex-col gap-3 pb-1 lg:flex lg:min-h-0 lg:overflow-auto lg:pb-0 ${mobileSection === "people" ? "flex" : "hidden"}`}
-          style={{ width: paneSplit.rightPx }}
+          className={`w-full flex-col gap-3 pb-1 lg:flex lg:w-auto lg:flex-none lg:min-h-0 lg:overflow-auto lg:pb-0 ${mobileSection === "people" ? "flex" : "hidden"}`}
+          style={{ width: isDesktop ? paneSplit.rightPx : undefined }}
         >
           {roomState.roomMode === "watch" ? (
             <VideoQueue
