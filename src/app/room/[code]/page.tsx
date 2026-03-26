@@ -79,6 +79,10 @@ function RoomContent() {
       return;
     }
     const clean = sanitizeName(trimmed);
+    if (clean === name) {
+      // Same name as before - still taken, don't close modal
+      return;
+    }
     setName(clean);
     if (clean !== "Anonymous") saveName(clean);
     setNameConflict(null);
