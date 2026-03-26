@@ -280,7 +280,7 @@ export function useLiveKit({
         );
         if (!res.ok) {
           if (res.status === 429) {
-            throw new Error("This room has hit its session limit. Try creating a new room or wait a few minutes.");
+            throw new Error("This room has hit its session limit. Ask people in the room to create a new one, or create your own.");
           }
           const text = await res.text();
           throw new Error(`Token error: ${res.status} ${text}`);
