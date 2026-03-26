@@ -27,24 +27,18 @@ function RoomContent() {
 
   // Name priority: URL param (backward compat) > localStorage > prompt modal
   const urlName = searchParams.get("name");
-  const [name, setName] = useState(() => sanitizeName(urlName ?? getSavedName()));
-  const [showNameModal, setShowNameModal] = useState(false);
+  // Determine if we need the name modal synchronously (before first render)
+  const needsNamePrompt = !urlName && !getSavedName();
+  const [name, setName] = useState(() => needsNamePrompt ? "Anonymous" : sanitizeName(urlName ?? getSavedName()));
+  const [showNameModal, setShowNameModal] = useState(needsNamePrompt);
 
   // If name came from URL param, save to localStorage and clean URL
   useEffect(() => {
     if (!urlName || !code) return;
     const clean = sanitizeName(urlName);
     const persisted = saveName(clean);
-    // Only strip ?name= if we successfully saved (otherwise it's the only transport)
     if (persisted) router.replace(`/room/${code}`);
   }, [urlName, code, router]);
-
-  // Show name modal if no saved name and no URL param (new user via direct link)
-  useEffect(() => {
-    if (!urlName && !getSavedName()) {
-      setShowNameModal(true);
-    }
-  }, [urlName]);
 
   if (!code) {
     return (
@@ -57,13 +51,16 @@ function RoomContent() {
   const handleRename = (newName: string) => {
     const clean = sanitizeName(newName);
     setName(clean);
-    saveName(clean);
+    // Only persist non-Anonymous names so users can clear their name
+    if (clean !== "Anonymous") saveName(clean);
   };
 
   const handleNameSubmit = (newName: string) => {
-    const clean = sanitizeName(newName);
+    const trimmed = newName.trim();
+    const clean = trimmed || "Anonymous";
     setName(clean);
-    saveName(clean);
+    // Don't persist "Anonymous" - let the modal show again next time
+    if (trimmed) saveName(trimmed);
     setShowNameModal(false);
   };
 

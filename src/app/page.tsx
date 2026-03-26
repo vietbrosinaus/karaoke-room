@@ -30,9 +30,8 @@ export default function Home() {
 
   const handleCreate = () => {
     if (!name.trim()) { setError("Enter your name first"); return; }
-    const trimmed = name.trim();
+    const trimmed = name.trim().slice(0, MAX_NAME_LENGTH);
     const persisted = saveName(trimmed);
-    // Fallback to URL param if localStorage is blocked (private browsing)
     const param = persisted ? "" : `?name=${encodeURIComponent(trimmed)}`;
     router.push(`/room/${generateRoomCode()}${param}`);
   };
@@ -41,7 +40,7 @@ export default function Home() {
     if (!name.trim()) { setError("Enter your name first"); return; }
     const code = joinCode.toUpperCase().trim();
     if (code.length !== CODE_LENGTH) { setError("Code must be 6 characters"); return; }
-    const trimmed = name.trim();
+    const trimmed = name.trim().slice(0, MAX_NAME_LENGTH);
     const persisted = saveName(trimmed);
     const param = persisted ? "" : `?name=${encodeURIComponent(trimmed)}`;
     router.push(`/room/${code}${param}`);
