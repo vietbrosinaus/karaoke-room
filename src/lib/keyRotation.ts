@@ -162,8 +162,18 @@ export async function getKeyForRoom(
 
     // Check existing room-to-key mapping (reuse the GET we already did)
     if (currentKey !== null) {
+      if (!keySets[currentKey]) {
+        // Mapping points to a key index that no longer exists in env config.
+        // This is a server configuration error (key removed), not a quota issue.
+        // Return null so the route can respond with 500 instead of misleading 429.
+        console.error(
+          "[KeyRotation] Redis mapping references missing key index",
+          { room, currentKey, configuredKeyCount: keySets.length },
+        );
+        return null;
+      }
       const exhausted = await r.exists(`key:${currentKey}:exhausted`);
-      if (!exhausted && keySets[currentKey]) {
+      if (!exhausted) {
         // Key is healthy - use it (room affinity)
         await r.expire(roomKey, ROOM_KEY_TTL);
         return { keySet: keySets[currentKey]!, index: currentKey };

@@ -49,8 +49,16 @@ export async function GET(req: NextRequest) {
     // Get the key for this room (Redis-backed with fallback to hash)
     const result = await getKeyForRoom(normalizedRoom, keySets, keyHint === "next");
 
-    if (!result || "error" in result) {
-      const msg = result?.error === "all-exhausted"
+    if (!result) {
+      // null = configuration error (missing key index, no keys configured)
+      return NextResponse.json(
+        { error: "Server configuration error" },
+        { status: 500 },
+      );
+    }
+
+    if ("error" in result) {
+      const msg = result.error === "all-exhausted"
         ? "All sessions are at capacity right now. Please try again in a few minutes."
         : "This room has hit its session limit. Ask people in the room to create a new one, or create your own.";
       return NextResponse.json({ error: msg }, { status: 429 });
