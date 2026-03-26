@@ -156,8 +156,8 @@ export function SoundProfileModal({
           {/* === SINGING MODE === */}
           <section>
             <div className="mb-3 flex items-center gap-2">
-              <Mic size={16} style={{ color: "var(--color-accent)" }} />
-              <h3 className="text-xs font-bold uppercase tracking-widest" style={{ fontFamily: "var(--font-display)", color: "var(--color-accent)" }}>
+              <Mic size={16} style={{ color: "var(--color-text-secondary)" }} />
+              <h3 className="text-xs font-bold uppercase tracking-widest" style={{ fontFamily: "var(--font-display)", color: "var(--color-text-secondary)" }}>
                 Singing Mode
               </h3>
             </div>
@@ -173,7 +173,7 @@ export function SoundProfileModal({
                       onClick={() => onVoiceEffectChange(fx.id)}
                       className="cursor-pointer rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-all hover:scale-105 active:scale-95"
                       style={{
-                        background: voiceEffect === fx.id ? "var(--color-accent)" : "var(--color-dark-card)",
+                        background: voiceEffect === fx.id ? "var(--color-primary)" : "var(--color-dark-card)",
                         color: voiceEffect === fx.id ? "#fff" : "var(--color-text-muted)",
                         border: voiceEffect === fx.id ? "none" : "1px solid var(--color-dark-border)",
                       }}
@@ -207,7 +207,7 @@ export function SoundProfileModal({
                     {singingNoiseCancellation ? "Processing ON (may reduce voice quality)" : "OFF — raw stereo 48kHz (recommended)"}
                   </p>
                 </div>
-                <ToggleSwitch on={singingNoiseCancellation} onChange={onSingingNoiseCancellationChange} color="var(--color-accent)" />
+                <ToggleSwitch on={singingNoiseCancellation} onChange={onSingingNoiseCancellationChange} color="var(--color-primary)" />
               </div>
 
               {/* Singing mic check — real-time toggle */}
@@ -216,9 +216,9 @@ export function SoundProfileModal({
                 disabled={micCheckState === "monitoring-talk"}
                 className="w-full cursor-pointer rounded-lg border py-2 text-xs font-medium transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
                 style={{
-                  borderColor: micCheckState === "monitoring-sing" ? "var(--color-accent)" : "var(--color-dark-border)",
-                  background: micCheckState === "monitoring-sing" ? "var(--color-accent-dim)" : "transparent",
-                  color: micCheckState === "monitoring-sing" ? "var(--color-accent)" : "var(--color-text-primary)",
+                  borderColor: micCheckState === "monitoring-sing" ? "var(--color-primary)" : "var(--color-dark-border)",
+                  background: micCheckState === "monitoring-sing" ? "var(--color-primary-dim)" : "transparent",
+                  color: micCheckState === "monitoring-sing" ? "var(--color-primary)" : "var(--color-text-primary)",
                 }}
               >
                 {micCheckState === "monitoring-sing" ? "Listening... (click to stop)" : micCheckState === "error" ? "Mic access denied" : "Singing Mic Check"}

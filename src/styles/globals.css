@@ -25,11 +25,51 @@
   --color-neon-cyan: var(--color-primary);
   --color-neon-purple: var(--color-primary);
   --color-neon-yellow: var(--color-accent);
+
+  /* Chat name palette (works across modes). */
+  --chat-name-1: #34d399;
+  --chat-name-2: #f472b6;
+  --chat-name-3: #60a5fa;
+  --chat-name-4: #fbbf24;
+  --chat-name-5: #ff6b6b;
+  --chat-name-6: #51cf66;
+  --chat-name-7: #ff922b;
+  --chat-name-8: #c084fc;
+}
+
+[data-mode="watch"] {
+  --watch-glow-rgb: 212 160 23;
+  --watch-accent-rgb: 245 230 200;
+  --color-primary: rgb(var(--watch-glow-rgb));
+  --color-primary-dim: rgb(var(--watch-glow-rgb) / 0.12);
+  --color-accent: rgb(var(--watch-accent-rgb));
+  --color-accent-dim: rgb(var(--watch-accent-rgb) / 0.10);
+}
+
+/* Fallback value (in case watch-glow renders outside watch mode). */
+@theme {
+  --watch-glow-rgb: 212 160 23;
+  --watch-accent-rgb: 245 230 200;
+}
+
+main[data-mode] {
+  transition: background-color 0.4s ease, color 0.4s ease;
 }
 
 @keyframes fade-in {
   from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes watch-enter {
+  from { opacity: 0; transform: scale(0.98); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes watch-glow {
+  0% { box-shadow: 0 0 0 rgb(var(--watch-glow-rgb) / 0); }
+  50% { box-shadow: 0 0 22px rgb(var(--watch-glow-rgb) / 0.16); }
+  100% { box-shadow: 0 0 0 rgb(var(--watch-glow-rgb) / 0); }
 }
 
 @keyframes float-up {
@@ -63,6 +103,11 @@ body {
   color: var(--color-text-primary);
   font-family: var(--font-body);
   min-height: 100dvh;
+}
+
+.watch-glow {
+  border: 1px solid rgb(var(--watch-glow-rgb) / 0.22);
+  animation: watch-glow 6s ease-in-out infinite;
 }
 
 /* Tooltip */

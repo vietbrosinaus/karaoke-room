@@ -1,12 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import type { ChatMessage } from "~/types/room";
 
 interface ChatPanelProps {
   messages: ChatMessage[];
   onSend: (text: string) => void;
   myPeerId: string | null;
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
 function formatTime(timestamp: number): string {
@@ -14,17 +17,17 @@ function formatTime(timestamp: number): string {
   return `${date.getHours().toString().padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}`;
 }
 
-// Deterministic color for a given peer ID
+// Deterministic color for a given peer ID - uses fixed palette that works on dark bg in both modes
 function nameColor(peerId: string): string {
   const colors = [
-    "var(--color-neon-cyan)",
-    "var(--color-neon-pink)",
-    "var(--color-neon-purple)",
-    "var(--color-neon-yellow)",
-    "#ff6b6b",
-    "#51cf66",
-    "#ff922b",
-    "#cc5de8",
+    "var(--chat-name-1)",
+    "var(--chat-name-2)",
+    "var(--chat-name-3)",
+    "var(--chat-name-4)",
+    "var(--chat-name-5)",
+    "var(--chat-name-6)",
+    "var(--chat-name-7)",
+    "var(--chat-name-8)",
   ];
   let hash = 0;
   for (let i = 0; i < peerId.length; i++) {
@@ -33,7 +36,7 @@ function nameColor(peerId: string): string {
   return colors[Math.abs(hash) % colors.length]!;
 }
 
-export function ChatPanel({ messages, onSend, myPeerId }: ChatPanelProps) {
+export function ChatPanel({ messages, onSend, myPeerId, collapsed, onToggleCollapse }: ChatPanelProps) {
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -68,27 +71,63 @@ export function ChatPanel({ messages, onSend, myPeerId }: ChatPanelProps) {
           className="text-sm uppercase tracking-widest"
           style={{
             fontFamily: "var(--font-display)",
-            color: "var(--color-neon-cyan)",
+            color: "var(--color-primary)",
             fontSize: "0.75rem",
           }}
         >
           Chat
         </h3>
-        <span
-          className="rounded-full px-2 py-0.5 text-xs font-medium"
-          style={{
-            background: "rgba(0, 240, 255, 0.15)",
-            color: "var(--color-neon-cyan)",
-          }}
-        >
-          {messages.length}
-        </span>
+        <div className="flex items-center gap-2">
+          <span
+            className="rounded-full px-2 py-0.5 text-xs font-medium"
+            style={{
+              background: "var(--color-primary-dim)",
+              color: "var(--color-primary)",
+            }}
+          >
+            {messages.length}
+          </span>
+          {onToggleCollapse ? (
+            <button
+              onClick={onToggleCollapse}
+              className="cursor-pointer inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide transition-all hover:scale-105 active:scale-95"
+              style={{
+                fontFamily: "var(--font-display)",
+                borderColor: "var(--color-dark-border)",
+                color: "var(--color-text-muted)",
+                background: "var(--color-dark-card)",
+              }}
+              title={collapsed ? "Expand chat" : "Collapse chat"}
+            >
+              {collapsed ? <><ChevronUp size={11} />Show</> : <><ChevronDown size={11} />Hide</>}
+            </button>
+          ) : null}
+        </div>
       </div>
+
+      {/* Last message preview when collapsed */}
+      {collapsed && messages.length > 0 ? (() => {
+        const last = messages[messages.length - 1]!;
+        const isMe = last.from === myPeerId;
+        return (
+          <div className="flex items-baseline gap-2 truncate px-5 py-2">
+            <span className="shrink-0 text-[10px] tabular-nums" style={{ color: "var(--color-text-secondary)" }}>
+              {formatTime(last.timestamp)}
+            </span>
+            <span className="text-xs font-semibold" style={{ color: isMe ? "var(--color-primary)" : nameColor(last.from) }}>
+              {last.fromName}
+            </span>
+            <span className="truncate text-xs" style={{ color: "var(--color-text-muted)" }}>
+              {last.text}
+            </span>
+          </div>
+        );
+      })() : null}
 
       {/* Messages */}
       <div
         ref={listRef}
-        className="flex-1 overflow-y-auto px-4 py-3"
+        className={`overflow-y-auto px-4 py-3 transition-all duration-200 ${collapsed ? "hidden" : "flex-1"}`}
         style={{ scrollbarWidth: "thin", scrollbarColor: "var(--color-dark-border) transparent" }}
       >
         {messages.length === 0 ? (
@@ -113,7 +152,7 @@ export function ChatPanel({ messages, onSend, myPeerId }: ChatPanelProps) {
                     </span>
                     <span
                       className="text-xs font-semibold"
-                      style={{ color: isMe ? "var(--color-neon-cyan)" : nameColor(msg.from) }}
+                      style={{ color: isMe ? "var(--color-primary)" : nameColor(msg.from) }}
                     >
                       {msg.fromName}
                       {isMe && (
@@ -143,7 +182,7 @@ export function ChatPanel({ messages, onSend, myPeerId }: ChatPanelProps) {
       {/* Input */}
       <form
         onSubmit={handleSubmit}
-        className="flex items-center gap-2 border-t px-4 py-3"
+        className={`items-center gap-2 border-t px-4 py-3 ${collapsed ? "hidden" : "flex"}`}
         style={{ borderColor: "var(--color-dark-border)" }}
       >
         <input
@@ -152,7 +191,7 @@ export function ChatPanel({ messages, onSend, myPeerId }: ChatPanelProps) {
           onChange={(e) => setInput(e.target.value)}
           placeholder="Type a message..."
           maxLength={500}
-          className="flex-1 rounded-lg border bg-transparent px-3 py-2 text-sm outline-none transition-all duration-200 focus:border-[var(--color-neon-cyan)]"
+          className="flex-1 rounded-lg border bg-transparent px-3 py-2 text-sm outline-none transition-all duration-200 focus:border-[var(--color-primary)]"
           style={{
             borderColor: "var(--color-dark-border)",
             color: "var(--color-text-primary)",
@@ -165,14 +204,14 @@ export function ChatPanel({ messages, onSend, myPeerId }: ChatPanelProps) {
           style={{
             fontFamily: "var(--font-display)",
             background: input.trim()
-              ? "rgba(0, 240, 255, 0.15)"
+              ? "var(--color-primary-dim)"
               : "var(--color-dark-card)",
             color: input.trim()
-              ? "var(--color-neon-cyan)"
+              ? "var(--color-primary)"
               : "var(--color-text-secondary)",
             borderWidth: "1px",
             borderColor: input.trim()
-              ? "var(--color-neon-cyan)"
+              ? "var(--color-primary)"
               : "var(--color-dark-border)",
           }}
         >

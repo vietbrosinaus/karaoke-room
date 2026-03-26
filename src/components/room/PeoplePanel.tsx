@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Mic, MicOff, Music, Globe } from "lucide-react";
 import type { Participant, ParticipantStatus, RoomState } from "~/types/room";
 
@@ -37,6 +37,11 @@ export function PeoplePanel({
   const isInQueue = myPeerId ? roomState.queue.includes(myPeerId) : false;
   const isSinging = myPeerId !== null && roomState.currentSingerId === myPeerId;
   const isInQueueOrSinging = isInQueue || isSinging;
+  const isWatchMode = roomState.roomMode === "watch";
+
+  useEffect(() => {
+    if (isWatchMode && tab === "queue") setTab("people");
+  }, [isWatchMode, tab]);
 
   // Build a unified list: participants with their queue position
   const queuePositions = new Map(roomState.queue.map((id, i) => [id, i + 1]));
@@ -62,24 +67,26 @@ export function PeoplePanel({
             {roomState.participants.length}
           </span>
         </button>
-        <button
-          onClick={() => setTab("queue")}
-          className="flex flex-1 cursor-pointer items-center justify-center gap-1.5 px-4 py-2.5 text-xs font-semibold uppercase tracking-widest transition-all"
-          style={{
-            fontFamily: "var(--font-display)",
-            color: tab === "queue" ? "var(--color-accent)" : "var(--color-text-muted)",
-            borderBottom: tab === "queue" ? "2px solid var(--color-accent)" : "2px solid transparent",
-          }}
-        >
-          Queue
-          <span className="rounded-full px-1.5 py-0.5 text-[9px]" style={{ background: "var(--color-dark-card)" }}>
-            {roomState.queue.length}
-          </span>
-        </button>
+        {!isWatchMode ? (
+          <button
+            onClick={() => setTab("queue")}
+            className="flex flex-1 cursor-pointer items-center justify-center gap-1.5 px-4 py-2.5 text-xs font-semibold uppercase tracking-widest transition-all"
+            style={{
+              fontFamily: "var(--font-display)",
+              color: tab === "queue" ? "var(--color-accent)" : "var(--color-text-muted)",
+              borderBottom: tab === "queue" ? "2px solid var(--color-accent)" : "2px solid transparent",
+            }}
+          >
+            Queue
+            <span className="rounded-full px-1.5 py-0.5 text-[9px]" style={{ background: "var(--color-dark-card)" }}>
+              {roomState.queue.length}
+            </span>
+          </button>
+        ) : null}
       </div>
 
       {/* Queue tab */}
-      {tab === "queue" && (
+      {tab === "queue" && !isWatchMode && (
         <div className="min-h-0 flex-1 overflow-auto px-2 py-2">
           {roomState.queue.length === 0 ? (
             <p className="py-6 text-center text-xs" style={{ color: "var(--color-text-muted)" }}>
@@ -246,8 +253,13 @@ export function PeoplePanel({
 
       {/* Queue action */}
       <div className="border-t px-3 py-3" style={{ borderColor: "var(--color-dark-border)" }}>
+        {isWatchMode ? (
+          <p className="text-center text-[11px]" style={{ color: "var(--color-text-muted)" }}>
+            To sing, switch back to Karaoke Mode
+          </p>
+        ) : null}
         {!isInQueueOrSinging ? (
-          canSing ? (
+          !isWatchMode && canSing ? (
             <button
               onClick={() => setShowJoinModal(true)}
               className="w-full cursor-pointer rounded-lg py-2.5 text-xs font-bold transition-all hover:brightness-110 active:scale-[0.98]"
@@ -261,20 +273,24 @@ export function PeoplePanel({
             </p>
           )
         ) : isSinging ? (
-          <p
-            className="text-center text-xs font-bold"
-            style={{ color: "var(--color-primary)" }}
-          >
-            You&apos;re singing!
-          </p>
+          !isWatchMode ? (
+            <p
+              className="text-center text-xs font-bold"
+              style={{ color: "var(--color-primary)" }}
+            >
+              You&apos;re singing!
+            </p>
+          ) : null
         ) : (
-          <button
-            onClick={onLeaveQueue}
-            className="w-full cursor-pointer rounded-lg border py-2.5 text-xs font-medium transition-all hover:brightness-110"
-            style={{ fontFamily: "var(--font-display)", borderColor: "var(--color-dark-border)", color: "var(--color-text-muted)" }}
-          >
-            Leave Queue
-          </button>
+          !isWatchMode ? (
+            <button
+              onClick={onLeaveQueue}
+              className="w-full cursor-pointer rounded-lg border py-2.5 text-xs font-medium transition-all hover:brightness-110"
+              style={{ fontFamily: "var(--font-display)", borderColor: "var(--color-dark-border)", color: "var(--color-text-muted)" }}
+            >
+              Leave Queue
+            </button>
+          ) : null
         )}
       </div>
 

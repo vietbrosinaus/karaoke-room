@@ -19,6 +19,13 @@ export interface ParticipantStatus {
   autoMix?: boolean;
 }
 
+export interface WatchQueueItem {
+  videoId: string;
+  title: string;
+  addedBy: string; // peerId
+  addedByName: string; // display name
+}
+
 export interface RoomState {
   participants: Participant[];
   queue: string[];
@@ -26,6 +33,15 @@ export interface RoomState {
   chatMessages: ChatMessage[];
   participantStatus: Record<string, ParticipantStatus>;
   mutedBySinger: string | null;
+  roomMode: "karaoke" | "watch";
+  watchQueue: WatchQueueItem[];
+  watchCurrentVideoId: string | null;
+  watchCurrentTitle: string | null;
+  watchCurrentAddedById: string | null;
+  watchCurrentAddedByName: string | null;
+  watchLeaderId: string | null;
+  watchState: "playing" | "paused" | null;
+  watchTime: number;
 }
 
 // Client → Server
@@ -42,6 +58,12 @@ export type ClientMessage =
   | { type: "unmute-all" }
   | { type: "add-to-queue"; targetPeerId: string }
   | { type: "mix-adjust"; voice: number; music: number }
+  | { type: "mode-switch"; mode: "karaoke" | "watch" }
+  | { type: "watch-queue-add"; videoId: string; title: string }
+  | { type: "watch-queue-remove"; videoId: string }
+  | { type: "watch-sync"; state: "playing" | "paused"; time: number }
+  | { type: "watch-skip" }
+  | { type: "watch-advance" }
   | { type: "pong" };
 
 // Server → Client
@@ -59,6 +81,7 @@ export type ServerMessage =
   | { type: "unmute-all" }
   | { type: "mix-adjust"; fromName: string; voice: number; music: number }
   | { type: "name-taken"; name: string; suggestions: string[] }
+  | { type: "watch-sync"; state: "playing" | "paused"; time: number; from: string }
   | { type: "ping" };
 
 export type SignalPayload =
