@@ -26,7 +26,9 @@ function RoomContent() {
   const code = params.code?.toUpperCase() ?? "";
 
   // Name priority: URL param (backward compat) > localStorage > prompt modal
-  const urlName = searchParams.get("name");
+  // Treat empty/whitespace-only ?name= as no name (don't persist "Anonymous")
+  const rawUrlName = searchParams.get("name");
+  const urlName = rawUrlName?.trim() || null;
   // Determine if we need the name modal synchronously (before first render)
   const needsNamePrompt = !urlName && !getSavedName();
   const [name, setName] = useState(() => needsNamePrompt ? "Anonymous" : sanitizeName(urlName ?? getSavedName()));
@@ -35,8 +37,7 @@ function RoomContent() {
   // If name came from URL param, save to localStorage and clean URL
   useEffect(() => {
     if (!urlName || !code) return;
-    const clean = sanitizeName(urlName);
-    const persisted = saveName(clean);
+    const persisted = saveName(urlName);
     if (persisted) router.replace(`/room/${code}`);
   }, [urlName, code, router]);
 
