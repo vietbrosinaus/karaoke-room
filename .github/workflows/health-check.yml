@@ -2,26 +2,38 @@ name: Health Check
 
 on:
   schedule:
-    # Every 6 hours
     - cron: '0 */6 * * *'
-  workflow_dispatch: # Manual trigger
+  workflow_dispatch:
 
 jobs:
-  health:
+  vercel:
+    name: Vercel
     runs-on: ubuntu-latest
     steps:
-      - name: Check Vercel (production site)
+      - name: Check production site
         run: |
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://karaoke-room.vercel.app)
           if [ "$STATUS" -ne 200 ]; then
             echo "::error::Vercel returned HTTP $STATUS"
             exit 1
           fi
-          echo "Vercel: OK ($STATUS)"
+          echo "OK ($STATUS)"
 
-      - name: Check PartyKit
+      - name: Check token endpoint
         run: |
-          # Hit the onRequest handler on a test room - returns JSON with status: "ok"
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "https://karaoke-room.vercel.app/api/livekit-token")
+          if [ "$HTTP_CODE" -eq 500 ] || [ "$HTTP_CODE" -eq 502 ] || [ "$HTTP_CODE" -eq 000 ]; then
+            echo "::error::Token endpoint returned HTTP $HTTP_CODE"
+            exit 1
+          fi
+          echo "OK ($HTTP_CODE - expected 400 for missing params)"
+
+  partykit:
+    name: PartyKit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check PartyKit server
+        run: |
           RESPONSE=$(curl -s -w "\n%{http_code}" https://karaoke-room.elvistranhere.partykit.dev/parties/main/healthcheck)
           HTTP_CODE=$(echo "$RESPONSE" | tail -1)
           BODY=$(echo "$RESPONSE" | head -1)
@@ -29,9 +41,13 @@ jobs:
             echo "::error::PartyKit is unreachable"
             exit 1
           fi
-          echo "PartyKit: OK ($HTTP_CODE) - $BODY"
+          echo "OK ($HTTP_CODE) - $BODY"
 
-      - name: Check Upstash Redis
+  upstash:
+    name: Upstash Redis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Redis PING
         env:
           UPSTASH_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
           UPSTASH_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
@@ -47,28 +63,50 @@ jobs:
             echo "::error::Upstash Redis returned HTTP $HTTP_CODE"
             exit 1
           fi
-          echo "Upstash Redis: OK"
+          echo "OK (PING successful)"
 
-      - name: Check LiveKit server
+  livekit:
+    name: LiveKit
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Primary
+            secret_key: LIVEKIT_URL
+          - name: Key 2
+            secret_key: LIVEKIT_URL_2
+          - name: Key 3
+            secret_key: LIVEKIT_URL_3
+          - name: Key 4
+            secret_key: LIVEKIT_URL_4
+          - name: Key 5
+            secret_key: LIVEKIT_URL_5
+    steps:
+      - name: Check LiveKit (${{ matrix.name }})
         env:
-          LK_URL: ${{ secrets.LIVEKIT_URL }}
+          LK_URL_PRIMARY: ${{ secrets.LIVEKIT_URL }}
+          LK_URL_2: ${{ secrets.LIVEKIT_URL_2 }}
+          LK_URL_3: ${{ secrets.LIVEKIT_URL_3 }}
+          LK_URL_4: ${{ secrets.LIVEKIT_URL_4 }}
+          LK_URL_5: ${{ secrets.LIVEKIT_URL_5 }}
         run: |
+          # Map matrix secret_key to the actual env var
+          case "${{ matrix.secret_key }}" in
+            LIVEKIT_URL)   LK_URL="$LK_URL_PRIMARY" ;;
+            LIVEKIT_URL_2) LK_URL="$LK_URL_2" ;;
+            LIVEKIT_URL_3) LK_URL="$LK_URL_3" ;;
+            LIVEKIT_URL_4) LK_URL="$LK_URL_4" ;;
+            LIVEKIT_URL_5) LK_URL="$LK_URL_5" ;;
+          esac
+
           if [ -z "$LK_URL" ]; then
-            echo "::warning::LIVEKIT_URL secret not configured - skipping"
+            echo "${{ matrix.name }}: not configured - skipping"
             exit 0
           fi
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$LK_URL")
           if [ "$STATUS" -eq 000 ]; then
-            echo "::error::LiveKit server is unreachable"
+            echo "::error::${{ matrix.name }} (${{ matrix.secret_key }}) is unreachable"
             exit 1
           fi
-          echo "LiveKit: OK (responded $STATUS)"
-
-      - name: Check token endpoint
-        run: |
-          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "https://karaoke-room.vercel.app/api/livekit-token")
-          if [ "$HTTP_CODE" -eq 500 ] || [ "$HTTP_CODE" -eq 502 ] || [ "$HTTP_CODE" -eq 000 ]; then
-            echo "::error::Token endpoint returned HTTP $HTTP_CODE"
-            exit 1
-          fi
-          echo "Token endpoint: OK ($HTTP_CODE)"
+          echo "${{ matrix.name }}: OK (responded $STATUS)"
