@@ -79,6 +79,7 @@ export function RoomView({ roomCode, playerName, onRename, onNameRejected }: Roo
   } = useAudioDevices();
 
   const [sessionStartTime] = useState(() => Date.now());
+  const [mobileSection, setMobileSection] = useState<"stage" | "chat" | "people">("stage");
 
   const {
     room,
@@ -308,6 +309,7 @@ export function RoomView({ roomCode, playerName, onRename, onNameRejected }: Roo
     });
   }, [isMicEnabled, isSharing, currentSong, isPartyConnected, sendStatusUpdate, browser, lkIdentity, autoMix]);
 
+
   return (
     <main className="relative flex h-dvh flex-col overflow-hidden">
       {/* Audio unlock prompt — dismisses on first click to satisfy autoplay policy */}
@@ -322,10 +324,10 @@ export function RoomView({ roomCode, playerName, onRename, onNameRejected }: Roo
 
       {/* Header */}
       <header
-        className="relative z-10 flex items-center justify-between border-b px-3 py-2 lg:px-6 lg:py-3"
+        className="relative z-10 flex flex-wrap items-center justify-between gap-2 border-b px-2 py-2 sm:px-3 lg:flex-nowrap lg:px-6 lg:py-3"
         style={{ borderColor: "var(--color-dark-border)" }}
       >
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           <h1
             className="text-lg font-extrabold lg:text-xl"
             style={{
@@ -337,10 +339,12 @@ export function RoomView({ roomCode, playerName, onRename, onNameRejected }: Roo
           >
             KaraOK
           </h1>
-          <InviteCode code={roomCode} />
+          <div className="min-w-0">
+            <InviteCode code={roomCode} />
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
           {/* Connection status */}
           <div className="flex items-center gap-1.5 text-xs" style={{ color: "var(--color-text-muted)" }}>
             <div
@@ -362,13 +366,13 @@ export function RoomView({ roomCode, playerName, onRename, onNameRejected }: Roo
             style={{ borderColor: "var(--color-dark-border)", color: "var(--color-text-muted)" }}
             title="Settings"
           >
-            <SettingsIcon size={14} />
+            <SettingsIcon size={13} />
           </button>
 
           {/* Leave */}
           <button
             onClick={() => router.push("/")}
-            className="cursor-pointer rounded-lg border px-3 py-1.5 text-xs font-medium transition-all hover:scale-105 active:scale-95"
+            className="cursor-pointer rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition-all hover:scale-105 active:scale-95 sm:px-3 sm:text-xs"
             style={{ fontFamily: "var(--font-display)", borderColor: "var(--color-dark-border)", color: "var(--color-text-muted)" }}
           >
             Leave
@@ -418,65 +422,89 @@ export function RoomView({ roomCode, playerName, onRename, onNameRejected }: Roo
       )}
 
       {/* Main content */}
-      <div className="relative z-10 flex min-h-0 flex-1 flex-col gap-2 p-2 lg:flex-row lg:gap-4 lg:p-4">
+      <div className="relative z-10 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2 pb-4 lg:flex-row lg:gap-4 lg:overflow-hidden lg:p-4">
+        {/* Mobile section switcher */}
+        <div className="grid grid-cols-3 gap-1 rounded-lg border p-1 lg:hidden" style={{ borderColor: "var(--color-dark-border)", background: "var(--color-dark-surface)" }}>
+          {[
+            { key: "stage", label: "Stage" },
+            { key: "chat", label: "Chat" },
+            { key: "people", label: "People" },
+          ].map((item) => (
+            <button
+              key={item.key}
+              onClick={() => setMobileSection(item.key as "stage" | "chat" | "people")}
+              className="rounded-md px-2 py-2 text-xs font-semibold transition-all"
+              style={{
+                fontFamily: "var(--font-display)",
+                background: mobileSection === item.key ? "var(--color-primary-dim)" : "transparent",
+                color: mobileSection === item.key ? "var(--color-primary)" : "var(--color-text-muted)",
+              }}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+
         {/* Left: Stage + Toolbar + Chat */}
-        <div className="flex min-h-0 flex-1 flex-col gap-2 lg:gap-3">
-          <StageBanner
-            room={room}
-            roomState={roomState}
-            isMyTurn={isMyTurn}
-            isSharing={isSharing}
-            onStartSharing={startSharing}
-            onStopSharing={stopSharing}
-            onFinishSinging={finishSinging}
-            audioError={sharingError}
-            singerSongName={
-              roomState.currentSingerId
-                ? participantStatus[roomState.currentSingerId]?.currentSong ?? null
-                : null
-            }
-            canSing={browser.canSing}
-            musicVolume={musicVolume}
-            onMusicVolumeChange={(vol: number) => {
-              setMusicVolume(vol);
-              // Sync per-person volume for the singer too
-              if (roomState.currentSingerId) {
-                const singerStatus = participantStatus[roomState.currentSingerId];
-                const singerId = singerStatus?.lkIdentity ?? roomState.participants.find((p) => p.id === roomState.currentSingerId)?.name ?? "";
-                if (singerId) setPersonVolumes((prev) => ({ ...prev, [singerId]: vol }));
-              }
-            }}
-            onMixMicGain={(v) => { setMixMicGain(v); setMixVoiceValue(Math.round(v * 100)); broadcastMix(v, mixMusicValue / 100); }}
-            onMixMusicGain={(v) => { setMixMusicGain(v); setMixMusicValue(Math.round(v * 100)); broadcastMix(mixVoiceValue / 100, v); }}
-            mixVoiceValue={mixVoiceValue}
-            mixMusicValue={mixMusicValue}
-            ambientId="ambient-bg"
-            onMuteAll={() => { sendMuteAll(); setSingerMutedAll(true); }}
-            onUnmuteAll={() => { sendUnmuteAll(); setSingerMutedAll(false); }}
-            isMutedAll={singerMutedAll}
-            singerAutoMix={roomState.currentSingerId ? participantStatus[roomState.currentSingerId]?.autoMix : false}
-            onMixAdjust={!isMyTurn ? sendMixAdjust : undefined}
-            onMixAdjustDone={!isMyTurn ? (voice, music) => {
-              sendChat(`adjusted mix — Voice ${Math.round(voice * 100)}%, Music ${Math.round(music * 100)}%`);
-            } : undefined}
-            autoMix={autoMix}
-            onAutoMixChange={(on) => { setAutoMix(on); sendChat(on ? "enabled Auto Mix" : "disabled Auto Mix"); }}
-            recordingState={recordingState}
-            recordingDuration={recordingDuration}
-            onStartRecording={startRecording}
-            onStopRecording={stopRecording}
-          />
+        <div className={`min-h-0 flex-1 flex-col gap-2 lg:flex lg:gap-3 ${mobileSection === "people" ? "hidden" : "flex"}`}>
+          <div className={`flex-col gap-2 lg:flex lg:gap-3 ${mobileSection === "stage" ? "flex" : "hidden"}`}>
+              <StageBanner
+                room={room}
+                roomState={roomState}
+                isMyTurn={isMyTurn}
+                isSharing={isSharing}
+                onStartSharing={startSharing}
+                onStopSharing={stopSharing}
+                onFinishSinging={finishSinging}
+                audioError={sharingError}
+                singerSongName={
+                  roomState.currentSingerId
+                    ? participantStatus[roomState.currentSingerId]?.currentSong ?? null
+                    : null
+                }
+                canSing={browser.canSing}
+                musicVolume={musicVolume}
+                onMusicVolumeChange={(vol: number) => {
+                  setMusicVolume(vol);
+                  // Sync per-person volume for the singer too
+                  if (roomState.currentSingerId) {
+                    const singerStatus = participantStatus[roomState.currentSingerId];
+                    const singerId = singerStatus?.lkIdentity ?? roomState.participants.find((p) => p.id === roomState.currentSingerId)?.name ?? "";
+                    if (singerId) setPersonVolumes((prev) => ({ ...prev, [singerId]: vol }));
+                  }
+                }}
+                onMixMicGain={(v) => { setMixMicGain(v); setMixVoiceValue(Math.round(v * 100)); broadcastMix(v, mixMusicValue / 100); }}
+                onMixMusicGain={(v) => { setMixMusicGain(v); setMixMusicValue(Math.round(v * 100)); broadcastMix(mixVoiceValue / 100, v); }}
+                mixVoiceValue={mixVoiceValue}
+                mixMusicValue={mixMusicValue}
+                ambientId="ambient-bg"
+                onMuteAll={() => { sendMuteAll(); setSingerMutedAll(true); }}
+                onUnmuteAll={() => { sendUnmuteAll(); setSingerMutedAll(false); }}
+                isMutedAll={singerMutedAll}
+                singerAutoMix={roomState.currentSingerId ? participantStatus[roomState.currentSingerId]?.autoMix : false}
+                onMixAdjust={!isMyTurn ? sendMixAdjust : undefined}
+                onMixAdjustDone={!isMyTurn ? (voice, music) => {
+                  sendChat(`adjusted mix - Voice ${Math.round(voice * 100)}%, Music ${Math.round(music * 100)}%`);
+                } : undefined}
+                autoMix={autoMix}
+                onAutoMixChange={(on) => { setAutoMix(on); sendChat(on ? "enabled Auto Mix" : "disabled Auto Mix"); }}
+                recordingState={recordingState}
+                recordingDuration={recordingDuration}
+                onStartRecording={startRecording}
+                onStopRecording={stopRecording}
+              />
 
-          <Toolbar
-            isMicEnabled={isMicEnabled}
-            toggleMic={toggleMic}
-            micMode={micMode}
-            onSoundProfileOpen={() => setSoundProfileOpen(true)}
-            onReact={sendReaction}
-          />
+              <Toolbar
+                isMicEnabled={isMicEnabled}
+                toggleMic={toggleMic}
+                micMode={micMode}
+                onSoundProfileOpen={() => setSoundProfileOpen(true)}
+                onReact={sendReaction}
+              />
+          </div>
 
-          {/* Chat — gets the most space */}
-          <div className="min-h-0 flex-1">
+          {/* Chat - gets the most space */}
+          <div className={`min-h-[280px] flex-1 lg:block lg:min-h-0 ${mobileSection === "chat" ? "block" : "hidden"}`}>
             <ChatPanel
               messages={chatMessages}
               onSend={sendChat}
@@ -486,7 +514,7 @@ export function RoomView({ roomCode, playerName, onRename, onNameRejected }: Roo
         </div>
 
         {/* Right: People panel + Random Wheel */}
-        <div className="flex w-full flex-col gap-3 lg:w-72 lg:min-h-0 lg:overflow-auto">
+        <div className={`w-full flex-col gap-3 pb-1 lg:flex lg:w-72 lg:min-h-0 lg:overflow-auto lg:pb-0 ${mobileSection === "people" ? "flex" : "hidden"}`}>
           <PeoplePanel
             roomState={roomState}
             myPeerId={myPeerId}
@@ -514,6 +542,11 @@ export function RoomView({ roomCode, playerName, onRename, onNameRejected }: Roo
             className="rounded-xl border p-3"
             style={{ background: "var(--color-dark-surface)", borderColor: "var(--color-dark-border)" }}
           >
+            <div className="-mx-3 mb-2 border-b px-3 pb-2" style={{ borderColor: "var(--color-dark-border)" }}>
+              <p className="text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: "var(--color-text-muted)" }}>
+                Get someone to sing
+              </p>
+            </div>
             <RandomWheel
               participants={roomState.participants}
               queue={roomState.queue}
@@ -522,7 +555,7 @@ export function RoomView({ roomCode, playerName, onRename, onNameRejected }: Roo
               onPick={(p) => {
               if (p.id === myPeerId) joinQueue();
               else addToQueue(p.id);
-              sendChat(`spun the wheel — ${p.name} is up next!`);
+              sendChat(`spun the wheel - ${p.name} is up next!`);
             }}
             />
           </div>

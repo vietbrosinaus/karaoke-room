@@ -45,7 +45,7 @@ export function StatusBar({
 
   return (
     <div
-      className="relative z-10 flex flex-wrap items-center gap-4 border-t px-6 py-2.5"
+      className="relative z-10 flex flex-wrap items-center gap-2 border-t px-3 py-2 sm:gap-4 sm:px-6 sm:py-2.5"
       style={{
         borderColor: "var(--color-dark-border)",
         background: "var(--color-dark-surface)",
@@ -87,7 +87,7 @@ export function StatusBar({
       )}
 
       {/* Spacer */}
-      <div className="flex-1" />
+      <div className="hidden flex-1 sm:block" />
 
       {/* Session time */}
       <div
@@ -99,7 +99,7 @@ export function StatusBar({
 
       {/* Session participant-minutes (this session only, not total quota) */}
       <div
-        className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs"
+        className="hidden items-center gap-1.5 rounded-md px-2 py-1 text-xs sm:flex"
         style={{
           background: "var(--color-dark-card)",
           color: "var(--color-text-secondary)",
