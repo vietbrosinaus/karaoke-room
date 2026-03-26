@@ -19,6 +19,10 @@ No test framework is configured. Verify changes with `npm run typecheck`.
 
 Do NOT include `Co-Authored-By` lines in commit messages.
 
+## Writing
+
+Never use em dashes (—). Use regular dashes (-) or rewrite the sentence.
+
 ## Architecture
 
 **KaraOK** is a real-time karaoke room app. Three systems work together:
