@@ -932,7 +932,10 @@ export function useLiveKit({
       console.log("[LiveKit] Mic is now", newState ? "ON" : "OFF");
     } catch (err) {
       console.error("[LiveKit] Mic error:", err);
-      setError(err instanceof Error ? err.message : "Mic failed");
+      const isPermission = err instanceof Error && (err.name === "NotAllowedError" || err.name === "NotFoundError");
+      setError(isPermission ? "Mic permission needed — click Unmute again" : (err instanceof Error ? err.message : "Mic failed"));
+      // Clear permission errors after 3s
+      if (isPermission) setTimeout(() => setError(null), 3000);
     } finally {
       isTogglingMicRef.current = false;
     }
