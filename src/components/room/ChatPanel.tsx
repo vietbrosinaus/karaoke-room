@@ -20,14 +20,14 @@ function formatTime(timestamp: number): string {
 // Deterministic color for a given peer ID - uses fixed palette that works on dark bg in both modes
 function nameColor(peerId: string): string {
   const colors = [
-    "#34d399", // emerald
-    "#f472b6", // pink
-    "#60a5fa", // blue
-    "#fbbf24", // amber
-    "#ff6b6b", // red
-    "#51cf66", // green
-    "#ff922b", // orange
-    "#c084fc", // purple
+    "var(--chat-name-1)",
+    "var(--chat-name-2)",
+    "var(--chat-name-3)",
+    "var(--chat-name-4)",
+    "var(--chat-name-5)",
+    "var(--chat-name-6)",
+    "var(--chat-name-7)",
+    "var(--chat-name-8)",
   ];
   let hash = 0;
   for (let i = 0; i < peerId.length; i++) {

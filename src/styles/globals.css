@@ -25,6 +25,16 @@
   --color-neon-cyan: var(--color-primary);
   --color-neon-purple: var(--color-primary);
   --color-neon-yellow: var(--color-accent);
+
+  /* Chat name palette (works across modes). */
+  --chat-name-1: #34d399;
+  --chat-name-2: #f472b6;
+  --chat-name-3: #60a5fa;
+  --chat-name-4: #fbbf24;
+  --chat-name-5: #ff6b6b;
+  --chat-name-6: #51cf66;
+  --chat-name-7: #ff922b;
+  --chat-name-8: #c084fc;
 }
 
 [data-mode="watch"] {

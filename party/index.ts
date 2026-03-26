@@ -490,6 +490,9 @@ export default class KaraokeRoom implements Party.Server {
       this.roomMode = "karaoke";
       // Always wipe any queued videos when leaving watch mode
       this.wipeWatchState();
+      if (this.currentSingerId === null && this.queue.length > 0) {
+        this.promoteNextSinger();
+      }
     }
 
     this.handleChat(sender, `switched to ${mode === "watch" ? "Watch" : "Karaoke"} Mode`);
@@ -827,6 +830,8 @@ export default class KaraokeRoom implements Party.Server {
     this.watchState = "playing";
     this.watchTime = 0;
     this.broadcastSystemChat(`Now playing: "${next.title}"`);
+    // Kick off playback immediately instead of waiting for leader heartbeat.
+    this.broadcast({ type: "watch-sync", state: "playing", time: 0, from: "KaraOK" });
   }
 
   private broadcastState() {

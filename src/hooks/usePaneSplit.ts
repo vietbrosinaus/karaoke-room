@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { MouseEvent as ReactMouseEvent } from "react";
 
 interface UsePaneSplitParams {
   storageKey: string;
@@ -12,10 +13,14 @@ interface UsePaneSplitParams {
 export function usePaneSplit({ storageKey, minPx, maxPx, defaultPx }: UsePaneSplitParams) {
   const [rightPx, setRightPx] = useState<number>(() => {
     if (typeof window === "undefined") return defaultPx;
-    const raw = window.localStorage.getItem(storageKey);
-    const n = raw ? Number(raw) : NaN;
-    if (!Number.isFinite(n)) return defaultPx;
-    return Math.max(minPx, Math.min(maxPx, n));
+    try {
+      const raw = window.localStorage.getItem(storageKey);
+      const n = raw ? Number(raw) : NaN;
+      if (!Number.isFinite(n)) return defaultPx;
+      return Math.max(minPx, Math.min(maxPx, n));
+    } catch {
+      return defaultPx;
+    }
   });
 
   useEffect(() => {
@@ -28,7 +33,7 @@ export function usePaneSplit({ storageKey, minPx, maxPx, defaultPx }: UsePaneSpl
 
   const dragRef = useRef<{ startX: number; startRight: number } | null>(null);
 
-  const onMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+  const onMouseDown = useCallback((e: ReactMouseEvent<HTMLDivElement>) => {
     dragRef.current = { startX: e.clientX, startRight: rightPx };
     e.preventDefault();
   }, [rightPx]);

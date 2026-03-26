@@ -82,7 +82,7 @@ export function WatchToolbar({ roomState, myPeerId, isMicEnabled, toggleMic, onS
       style={{
         borderColor: "var(--color-dark-border)",
         background: "var(--color-dark-surface)",
-        boxShadow: "0 0 0 1px rgba(212, 160, 23, 0.06) inset",
+        boxShadow: "0 0 0 1px rgb(var(--watch-glow-rgb) / 0.06) inset",
       }}
     >
       <div className="flex flex-wrap items-center gap-2">
@@ -92,8 +92,8 @@ export function WatchToolbar({ roomState, myPeerId, isMicEnabled, toggleMic, onS
           className="inline-flex shrink-0 cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition-all active:scale-95"
           style={{
             fontFamily: "var(--font-display)",
-            borderColor: "rgba(212, 160, 23, 0.25)",
-            background: isMicEnabled ? "rgba(212, 160, 23, 0.10)" : "rgba(212, 160, 23, 0.18)",
+            borderColor: "rgb(var(--watch-glow-rgb) / 0.25)",
+            background: isMicEnabled ? "rgb(var(--watch-glow-rgb) / 0.10)" : "rgb(var(--watch-glow-rgb) / 0.18)",
             color: "var(--color-primary)",
           }}
           title={isMicEnabled ? "Mute microphone" : "Unmute microphone"}
@@ -187,8 +187,8 @@ export function WatchToolbar({ roomState, myPeerId, isMicEnabled, toggleMic, onS
             className="inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
             style={{
               fontFamily: "var(--font-display)",
-              borderColor: "rgba(212, 160, 23, 0.25)",
-              background: "rgba(212, 160, 23, 0.10)",
+            borderColor: "rgb(var(--watch-glow-rgb) / 0.25)",
+            background: "rgb(var(--watch-glow-rgb) / 0.10)",
               color: "var(--color-primary)",
             }}
             disabled={isValidating || !url.trim()}
