@@ -221,16 +221,18 @@ export function WatchPlayer({ videoId, title, isLeader, watchSync, onSync, onAdv
     }
   }, [videoId, watchSync]);
 
+  const hasVideo = Boolean(videoId);
+
   return (
     <div
-      className="relative overflow-hidden rounded-2xl border p-3"
+      className={`relative flex flex-col overflow-hidden rounded-2xl border p-3 ${hasVideo ? "min-h-0 flex-1" : ""}`}
       style={{
         borderColor: "var(--color-dark-border)",
         background: "var(--color-dark-surface)",
         animation: "watch-enter 0.25s ease-out",
       }}
     >
-      <div className="mb-2 flex items-center justify-between gap-3">
+      <div className="mb-2 flex shrink-0 items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: "var(--color-text-muted)" }}>
             Watch Mode
@@ -252,17 +254,16 @@ export function WatchPlayer({ videoId, title, isLeader, watchSync, onSync, onAdv
         </div>
       </div>
 
-      <div className="relative">
+      <div className={`relative ${hasVideo ? "min-h-0 flex-1" : ""}`}>
         <div
-          className="watch-glow overflow-hidden rounded-xl"
+          className={`watch-glow overflow-hidden rounded-xl transition-all duration-300 ease-out ${hasVideo ? "h-full" : ""}`}
           style={{
-            height: "clamp(220px, 45dvh, 520px)",
-            background: videoId
+            ...(!hasVideo ? { height: "120px" } : {}),
+            background: hasVideo
               ? "linear-gradient(135deg, rgba(212, 160, 23, 0.10), rgba(245, 230, 200, 0.04))"
               : "var(--color-dark-card)",
           }}
         >
-          {/* Keep the mount node stable to avoid DOM cleanup races with the YouTube IFrame API. */}
           <div id={containerId} className="h-full w-full" />
         </div>
 

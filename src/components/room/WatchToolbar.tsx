@@ -1,10 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Mic, MicOff, Pause, Play, SkipForward, Link as LinkIcon, Settings, X } from "lucide-react";
+import { Mic, MicOff, SkipForward, Link as LinkIcon, MessageSquare, X } from "lucide-react";
 import { extractYouTubeVideoId, validateYouTubeVideo } from "~/lib/youtube";
 import type { RoomState } from "~/types/room";
-import type { WatchPlayerApi } from "./WatchPlayer";
 
 interface WatchToolbarProps {
   roomState: RoomState;
@@ -12,19 +11,16 @@ interface WatchToolbarProps {
   isMicEnabled: boolean;
   toggleMic: () => Promise<void>;
   onSoundProfileOpen: () => void;
-  playerApi: WatchPlayerApi | null;
   onQueueAdd: (videoId: string, title: string) => void;
-  onSync: (state: "playing" | "paused", time: number) => void;
   onSkip: () => void;
 }
 
-export function WatchToolbar({ roomState, myPeerId, isMicEnabled, toggleMic, onSoundProfileOpen, playerApi, onQueueAdd, onSync, onSkip }: WatchToolbarProps) {
+export function WatchToolbar({ roomState, myPeerId, isMicEnabled, toggleMic, onSoundProfileOpen, onQueueAdd, onSkip }: WatchToolbarProps) {
   const [url, setUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isValidating, setIsValidating] = useState(false);
 
   const canControl = roomState.roomMode === "watch" && roomState.watchCurrentVideoId !== null;
-  const isPlaying = roomState.watchState === "playing";
   const queueCount = roomState.watchQueue.length + (roomState.watchCurrentVideoId ? 1 : 0);
   const isLeader = myPeerId !== null && roomState.watchLeaderId === myPeerId;
 
@@ -80,11 +76,6 @@ export function WatchToolbar({ roomState, myPeerId, isMicEnabled, toggleMic, onS
     }
   };
 
-  const currentTime = () => {
-    const t = playerApi?.getCurrentTime();
-    return typeof t === "number" && Number.isFinite(t) ? t : roomState.watchTime ?? 0;
-  };
-
   return (
     <div
       className="rounded-xl border p-3"
@@ -118,33 +109,13 @@ export function WatchToolbar({ roomState, myPeerId, isMicEnabled, toggleMic, onS
           style={{
             fontFamily: "var(--font-display)",
             borderColor: "var(--color-dark-border)",
-            background: "rgba(9, 9, 11, 0.25)",
-            color: "var(--color-text-muted)",
+            background: "var(--color-primary-dim)",
+            color: "var(--color-primary)",
           }}
           title="Sound Profile"
         >
-          <Settings size={14} />
+          <MessageSquare size={14} />
           Sound
-        </button>
-
-        <button
-          className="inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
-          style={{
-            fontFamily: "var(--font-display)",
-            borderColor: "var(--color-dark-border)",
-            background: canControl ? "var(--color-primary-dim)" : "transparent",
-            color: canControl ? "var(--color-primary)" : "var(--color-text-muted)",
-          }}
-          disabled={!canControl}
-          onClick={() => {
-            const t = currentTime();
-            if (isPlaying) onSync("paused", t);
-            else onSync("playing", t);
-          }}
-          title={canControl ? "Play/Pause (syncs to everyone)" : "Queue a video to enable controls"}
-        >
-          {isPlaying ? <Pause size={14} /> : <Play size={14} />}
-          {isPlaying ? "Pause" : "Play"}
         </button>
 
         <button

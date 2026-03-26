@@ -132,6 +132,7 @@ export function useRoomState({
       }
       case "watch-sync":
         setWatchSync({ state: msg.state, time: msg.time, from: msg.from });
+        setRoomState((prev) => ({ ...prev, watchState: msg.state, watchTime: msg.time }));
         break;
       case "participant-status":
         setParticipantStatus((prev) => ({
