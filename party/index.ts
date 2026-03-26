@@ -234,7 +234,8 @@ export default class KaraokeRoom implements Party.Server {
           // Check if old connection is stale (no pong for >20s - likely a refresh)
           const lastPong = this.lastPong.get(id) ?? 0;
           if (now - lastPong > 20_000) {
-            // Stale ghost from refresh - evict and allow new connection
+            // Stale ghost from refresh - evict and close the old socket
+            try { p.ws.close(); } catch { /* already closed */ }
             this.removeParticipant(id);
           } else {
             // Active connection - real duplicate
