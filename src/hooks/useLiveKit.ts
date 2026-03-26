@@ -375,6 +375,14 @@ export function useLiveKit({
       mixMicGainRef.current = null;
       mixSystemGainRef.current = null;
       mixDestRef.current = null;
+      // Stop auto-mix timer + analyser (prevent orphaned setInterval)
+      if (autoMixTimerRef.current) { clearInterval(autoMixTimerRef.current); autoMixTimerRef.current = null; }
+      autoMixAnalyserRef.current?.disconnect();
+      autoMixAnalyserRef.current = null;
+      autoMixRef.current = false;
+      // Stop active recording timer (blob is lost on unmount anyway)
+      if (recordingTimerRef.current) { clearInterval(recordingTimerRef.current); recordingTimerRef.current = null; }
+      recorderRef.current = null;
       // Remove all remote audio elements to prevent duplicates on reconnect
       document.querySelectorAll('audio[id^="lk-audio-"]').forEach((el) => el.remove());
       room.disconnect();

@@ -70,12 +70,13 @@ export default class KaraokeRoom implements Party.Server {
     this.singerTimer = null;
     if (this.currentSingerId) {
       this.singerTimer = setTimeout(() => {
-        if (this.currentSingerId && !this.participants.has(this.currentSingerId)) {
-          console.log(`[KaraokeRoom] Singer ${this.currentSingerId} timed out — advancing queue`);
-          this.currentSingerId = null;
-          this.promoteNextSinger();
-          this.broadcastState();
-        }
+        if (!this.currentSingerId) return;
+        // Fire for both disconnected AND idle connected singers
+        console.log(`[KaraokeRoom] Singer ${this.currentSingerId} timed out - advancing queue`);
+        this.currentSingerId = null;
+        this.mutedBySinger = null;
+        this.promoteNextSinger();
+        this.broadcastState();
       }, SINGER_TIMEOUT_MS);
     }
   }
@@ -84,6 +85,15 @@ export default class KaraokeRoom implements Party.Server {
     this.lastPong.set(conn.id, Date.now());
     this.startHeartbeat();
     this.send(conn, { type: "you-joined", peerId: conn.id });
+
+    // Evict connections that don't send "join" within 10s
+    setTimeout(() => {
+      if (!this.participants.has(conn.id)) {
+        console.log(`[KaraokeRoom] Connection ${conn.id} never joined - disconnecting`);
+        this.lastPong.delete(conn.id);
+        try { conn.close(); } catch { /* already closed */ }
+      }
+    }, 10_000);
   }
 
   onMessage(message: string | ArrayBuffer | ArrayBufferView, sender: Party.Connection) {
@@ -148,11 +158,18 @@ export default class KaraokeRoom implements Party.Server {
   }
 
   onClose(conn: Party.Connection) {
+    // Clean up lastPong for pre-join connections that never called handleJoin
+    if (!this.participants.has(conn.id)) {
+      this.lastPong.delete(conn.id);
+    }
     this.removeParticipant(conn.id);
   }
 
   onError(conn: Party.Connection, _error: Error) {
     console.error(`[KaraokeRoom] Connection error for ${conn.id}`);
+    if (!this.participants.has(conn.id)) {
+      this.lastPong.delete(conn.id);
+    }
     this.removeParticipant(conn.id);
   }
 
@@ -173,11 +190,12 @@ export default class KaraokeRoom implements Party.Server {
       this.promoteNextSinger();
     }
 
-    // If room is now empty, reset all state so the DO can be GC'd cleanly
+    // If room is now empty, reset ALL state so the DO can be GC'd cleanly
     if (this.participants.size === 0) {
-      console.log(`[KaraokeRoom] Room ${this.room.id} is empty — resetting state`);
+      console.log(`[KaraokeRoom] Room ${this.room.id} is empty - resetting state`);
       this.queue = [];
       this.currentSingerId = null;
+      this.mutedBySinger = null;
       this.chatMessages = [];
       this.participantStatus.clear();
       this.lastPong.clear();
@@ -343,6 +361,17 @@ export default class KaraokeRoom implements Party.Server {
       status.browser = status.browser.slice(0, MAX_BROWSER_LENGTH);
     }
     this.participantStatus.set(sender.id, status);
+
+    // Singer timer: cancel while sharing, restart when idle
+    if (sender.id === this.currentSingerId) {
+      if (status.isSharingAudio) {
+        // Actively sharing - cancel idle timer (unlimited singing time)
+        if (this.singerTimer) { clearTimeout(this.singerTimer); this.singerTimer = null; }
+      } else {
+        // Not sharing - restart idle timer (60s to start/resume or get auto-advanced)
+        this.resetSingerTimer();
+      }
+    }
     // Send lightweight status update instead of full room state
     this.broadcast({
       type: "participant-status",
