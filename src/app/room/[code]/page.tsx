@@ -67,12 +67,13 @@ function RoomContent() {
     setShowNameModal(false);
   };
 
-  return (
-    <>
-      <RoomView roomCode={code} playerName={name} onRename={handleRename} />
-      {showNameModal && <NameModal onSubmit={handleNameSubmit} />}
-    </>
-  );
+  // Don't mount RoomView until name is resolved — prevents connecting as "Anonymous"
+  // then switching identity after the modal submits
+  if (showNameModal) {
+    return <NameModal onSubmit={handleNameSubmit} />;
+  }
+
+  return <RoomView roomCode={code} playerName={name} onRename={handleRename} />;
 }
 
 function NameModal({ onSubmit }: { onSubmit: (name: string) => void }) {
