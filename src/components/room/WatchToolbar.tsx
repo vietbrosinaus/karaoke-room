@@ -38,6 +38,20 @@ export function WatchToolbar({ roomState, myPeerId, playerApi, onQueueAdd, onSyn
     const trimmed = url.trim();
     if (!trimmed) return;
 
+    // Soft-block playlists for now (YouTube playlist links, or watch URLs with `list=`)
+    try {
+      const u = new URL(trimmed);
+      const host = u.hostname.replace(/^www\./, "");
+      const hasList = Boolean(u.searchParams.get("list"));
+      const isPlaylistPath = u.pathname.startsWith("/playlist");
+      if ((host === "youtube.com" || host === "m.youtube.com" || host === "music.youtube.com") && (hasList || isPlaylistPath)) {
+        setError("Playlists are not supported yet - paste a single video URL.");
+        return;
+      }
+    } catch {
+      // ignore URL parse failures here - extractYouTubeVideoId handles them
+    }
+
     const videoId = extractYouTubeVideoId(trimmed);
     if (!videoId) {
       setError("Not a valid YouTube URL");
