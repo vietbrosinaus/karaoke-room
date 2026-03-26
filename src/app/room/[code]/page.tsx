@@ -84,7 +84,7 @@ function RoomContent() {
       return;
     }
     setName(clean);
-    if (clean !== "Anonymous") saveName(clean);
+    saveName(clean === "Anonymous" ? "" : clean);
     setNameConflict(null);
   };
 
