@@ -1,0 +1,71 @@
+name: Health Check
+
+on:
+  schedule:
+    # Every 6 hours
+    - cron: '0 */6 * * *'
+  workflow_dispatch: # Manual trigger
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Vercel (production site)
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://karaoke-room.vercel.app)
+          if [ "$STATUS" -ne 200 ]; then
+            echo "::error::Vercel returned HTTP $STATUS"
+            exit 1
+          fi
+          echo "Vercel: OK ($STATUS)"
+
+      - name: Check PartyKit
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://karaoke-room.elvistranhere.partykit.dev/parties/main/health)
+          if [ "$STATUS" -eq 000 ]; then
+            echo "::error::PartyKit is unreachable"
+            exit 1
+          fi
+          echo "PartyKit: OK ($STATUS)"
+
+      - name: Check Upstash Redis
+        env:
+          UPSTASH_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+        run: |
+          if [ -z "$UPSTASH_URL" ] || [ -z "$UPSTASH_TOKEN" ]; then
+            echo "::warning::Upstash secrets not configured - skipping"
+            exit 0
+          fi
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+            "$UPSTASH_URL/ping" \
+            -H "Authorization: Bearer $UPSTASH_TOKEN")
+          if [ "$HTTP_CODE" -ne 200 ]; then
+            echo "::error::Upstash Redis returned HTTP $HTTP_CODE"
+            exit 1
+          fi
+          echo "Upstash Redis: OK"
+
+      - name: Check LiveKit server
+        env:
+          LK_URL: ${{ secrets.LIVEKIT_URL }}
+        run: |
+          if [ -z "$LK_URL" ]; then
+            echo "::warning::LIVEKIT_URL secret not configured - skipping"
+            exit 0
+          fi
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$LK_URL")
+          if [ "$STATUS" -eq 000 ]; then
+            echo "::error::LiveKit server is unreachable"
+            exit 1
+          fi
+          echo "LiveKit: OK (responded $STATUS)"
+
+      - name: Check token endpoint
+        run: |
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "https://karaoke-room.vercel.app/api/livekit-token")
+          if [ "$HTTP_CODE" -eq 500 ] || [ "$HTTP_CODE" -eq 502 ] || [ "$HTTP_CODE" -eq 000 ]; then
+            echo "::error::Token endpoint returned HTTP $HTTP_CODE"
+            exit 1
+          fi
+          echo "Token endpoint: OK ($HTTP_CODE)"
