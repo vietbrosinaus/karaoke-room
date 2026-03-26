@@ -61,6 +61,7 @@ export type ServerMessage =
   | { type: "mute-all"; singerName: string }
   | { type: "unmute-all" }
   | { type: "mix-adjust"; fromName: string; voice: number; music: number }
+  | { type: "name-taken"; name: string; suggestions: string[] }
   | { type: "ping" };
 
 export type SignalPayload =

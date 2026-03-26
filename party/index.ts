@@ -219,8 +219,29 @@ export default class KaraokeRoom implements Party.Server {
 
     const trimmedName = name.trim().slice(0, MAX_NAME_LENGTH);
 
-    // Handle re-join: update name if already present
+    // Check for duplicate names (case-insensitive)
+    // Skip check if this is a re-join (same peerId updating their own name)
     const existing = this.participants.get(sender.id);
+    const isDuplicate = Array.from(this.participants.values()).some(
+      (p) => p.name.toLowerCase() === trimmedName.toLowerCase() && p.ws.id !== sender.id
+    );
+
+    if (isDuplicate) {
+      // Generate suggestions
+      const suggestions: string[] = [];
+      for (let i = 2; i <= 5; i++) {
+        const candidate = `${trimmedName}${i}`;
+        const taken = Array.from(this.participants.values()).some(
+          (p) => p.name.toLowerCase() === candidate.toLowerCase()
+        );
+        if (!taken) suggestions.push(candidate);
+        if (suggestions.length >= 3) break;
+      }
+      this.send(sender, { type: "name-taken", name: trimmedName, suggestions });
+      return;
+    }
+
+    // Handle re-join: update name if already present
     if (existing) {
       existing.name = trimmedName;
     } else {
