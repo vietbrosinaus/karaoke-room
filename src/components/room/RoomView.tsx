@@ -392,6 +392,15 @@ export function RoomView({ roomCode, playerName, onRename, onNameRejected }: Roo
               Create New Room
             </button>
           )}
+          {liveKitError.includes("capacity") && (
+            <button
+              onClick={() => window.location.reload()}
+              className="mt-2 cursor-pointer rounded-md px-3 py-1.5 text-[11px] font-medium transition-all hover:brightness-110"
+              style={{ background: "var(--color-danger)", color: "#fff" }}
+            >
+              Try Again
+            </button>
+          )}
         </div>
       )}
 
