@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useRef } from "react";
-import { Mic, MicOff, Settings, MessageSquare, Music } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Mic, MicOff, Settings, MessageSquare, Music, Smile, ChevronDown } from "lucide-react";
 import type { MicMode } from "~/hooks/useAudioDevices";
 
 interface ToolbarProps {
@@ -22,16 +22,32 @@ export function Toolbar({
   onReact,
 }: ToolbarProps) {
   const cooldownRef = useRef(false);
+  const reactionsRef = useRef<HTMLDivElement>(null);
+  const [showMobileReactions, setShowMobileReactions] = useState(false);
+
+  useEffect(() => {
+    if (!showMobileReactions) return;
+
+    const handleClickOutside = (e: PointerEvent) => {
+      if (reactionsRef.current && !reactionsRef.current.contains(e.target as Node)) {
+        setShowMobileReactions(false);
+      }
+    };
+    document.addEventListener("pointerdown", handleClickOutside);
+    return () => document.removeEventListener("pointerdown", handleClickOutside);
+  }, [showMobileReactions]);
+
   const handleReact = useCallback((emoji: string) => {
     if (cooldownRef.current) return;
     cooldownRef.current = true;
     onReact(emoji);
+    setShowMobileReactions(false);
     setTimeout(() => { cooldownRef.current = false; }, 500);
   }, [onReact]);
 
   return (
     <div
-      className="flex items-center gap-2 overflow-x-auto rounded-xl border px-3 py-2.5"
+      className="flex items-center gap-2 overflow-visible rounded-xl border px-3 py-2.5 lg:overflow-x-auto"
       style={{ background: "var(--color-dark-surface)", borderColor: "var(--color-dark-border)" }}
     >
       {/* Mic toggle */}
@@ -68,17 +84,55 @@ export function Toolbar({
       {/* Spacer */}
       <div className="flex-1" />
 
-      {/* Reactions */}
-      {REACTION_EMOJIS.map((emoji) => (
+      {/* Desktop reactions */}
+      <div className="hidden items-center gap-0.5 lg:flex">
+        {REACTION_EMOJIS.map((emoji) => (
+          <button
+            key={emoji}
+            onClick={() => handleReact(emoji)}
+            className="shrink-0 cursor-pointer rounded-md px-1 py-0.5 text-base transition-transform hover:scale-125 active:scale-90"
+            title={`React with ${emoji}`}
+          >
+            {emoji}
+          </button>
+        ))}
+      </div>
+
+      {/* Mobile reactions toggle */}
+      <div ref={reactionsRef} className="relative lg:hidden">
         <button
-          key={emoji}
-          onClick={() => handleReact(emoji)}
-          className="shrink-0 cursor-pointer rounded-md px-1 py-0.5 text-base transition-transform hover:scale-125 active:scale-90"
-          title={`React with ${emoji}`}
+          onClick={() => setShowMobileReactions((v) => !v)}
+          className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition-all hover:border-[var(--color-primary)]"
+          style={{
+            borderColor: showMobileReactions ? "var(--color-primary)" : "var(--color-dark-border)",
+            color: showMobileReactions ? "var(--color-primary)" : "var(--color-text-muted)",
+            background: showMobileReactions ? "var(--color-primary-dim)" : "transparent",
+          }}
+          title="Open reactions"
         >
-          {emoji}
+          <Smile size={12} />
+          React
+          <ChevronDown size={10} style={{ transform: showMobileReactions ? "rotate(180deg)" : "none", transition: "transform 120ms ease" }} />
         </button>
-      ))}
+
+        {showMobileReactions && (
+          <div
+            className="absolute right-0 top-[calc(100%+6px)] z-20 flex w-52 flex-wrap gap-1 rounded-lg border p-2"
+            style={{ background: "var(--color-dark-surface)", borderColor: "var(--color-dark-border)" }}
+          >
+            {REACTION_EMOJIS.map((emoji) => (
+              <button
+                key={emoji}
+                onClick={() => handleReact(emoji)}
+                className="cursor-pointer rounded-md px-1.5 py-1 text-base transition-transform active:scale-90"
+                title={`React with ${emoji}`}
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

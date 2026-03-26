@@ -19,6 +19,10 @@ export default function Home() {
   const [joinCode, setJoinCode] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState("");
+  const normalizedName = name.trim();
+  const canProceedWithName = normalizedName.length > 0;
+  const joinCodeClean = joinCode.toUpperCase().trim();
+  const canJoin = canProceedWithName && joinCodeClean.length === CODE_LENGTH;
 
   // Pre-fill name from localStorage (already normalized by getSavedName)
   useEffect(() => {
@@ -27,18 +31,18 @@ export default function Home() {
   }, []);
 
   const handleCreate = () => {
-    if (!name.trim()) { setError("Enter your name first"); return; }
-    const trimmed = name.trim().slice(0, MAX_NAME_LENGTH);
+    if (!canProceedWithName) { setError("Enter your name first"); return; }
+    const trimmed = normalizedName.slice(0, MAX_NAME_LENGTH);
     const persisted = saveName(trimmed);
     const param = persisted ? "" : `?name=${encodeURIComponent(trimmed)}`;
     router.push(`/room/${generateRoomCode()}${param}`);
   };
 
   const handleJoin = () => {
-    if (!name.trim()) { setError("Enter your name first"); return; }
-    const code = joinCode.toUpperCase().trim();
+    if (!canProceedWithName) { setError("Enter your name first"); return; }
+    const code = joinCodeClean;
     if (code.length !== CODE_LENGTH) { setError("Code must be 6 characters"); return; }
-    const trimmed = name.trim().slice(0, MAX_NAME_LENGTH);
+    const trimmed = normalizedName.slice(0, MAX_NAME_LENGTH);
     const persisted = saveName(trimmed);
     const param = persisted ? "" : `?name=${encodeURIComponent(trimmed)}`;
     router.push(`/room/${code}${param}`);
@@ -91,16 +95,22 @@ export default function Home() {
           borderColor: "var(--color-dark-border)",
         }}
       >
-        {/* Name */}
+        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em]" style={{ color: "var(--color-text-muted)" }}>
+          Step 1 - Enter your name
+        </p>
         <input
           type="text"
           value={name}
           onChange={(e) => { setName(e.target.value); setError(""); }}
-          placeholder="Your name"
+          placeholder="Display name"
           maxLength={20}
           className="mb-4 w-full rounded-lg border px-4 py-3 text-sm outline-none transition-all focus:border-[var(--color-primary)]"
           style={{ background: "var(--color-dark-card)", borderColor: "var(--color-dark-border)", color: "var(--color-text-primary)" }}
         />
+
+        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em]" style={{ color: "var(--color-text-muted)" }}>
+          Step 2 - Choose how to enter
+        </p>
 
         {error && (
           <p className="mb-3 text-xs" style={{ color: "var(--color-danger)" }}>{error}</p>
@@ -109,12 +119,17 @@ export default function Home() {
         {/* Create */}
         <button
           onClick={handleCreate}
-          className="mb-3 flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg py-3 text-sm font-bold transition-all hover:brightness-110 active:scale-[0.98]"
+          disabled={!canProceedWithName}
+          className="mb-3 flex w-full items-center justify-center gap-2 rounded-lg py-3 text-sm font-bold transition-all enabled:cursor-pointer enabled:hover:brightness-110 enabled:active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
           style={{ fontFamily: "var(--font-display)", background: "var(--color-primary)", color: "#fff" }}
         >
-          Create a Room
+          Create new room
           <ArrowRight size={14} />
         </button>
+
+        <p className="mb-3 text-center text-xs" style={{ color: "var(--color-text-muted)" }}>
+          or join with a 6-character room code
+        </p>
 
         {/* Join */}
         <div className="flex gap-2">
@@ -130,7 +145,8 @@ export default function Home() {
           />
           <button
             onClick={handleJoin}
-            className="shrink-0 cursor-pointer rounded-lg border px-4 py-3 text-sm font-bold transition-all hover:border-[var(--color-primary)] hover:brightness-110 active:scale-95"
+            disabled={!canJoin}
+            className="shrink-0 rounded-lg border px-4 py-3 text-sm font-bold transition-all enabled:cursor-pointer enabled:hover:border-[var(--color-primary)] enabled:hover:brightness-110 enabled:active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
             style={{ fontFamily: "var(--font-display)", borderColor: "var(--color-dark-border)", color: "var(--color-text-primary)" }}
           >
             Join
