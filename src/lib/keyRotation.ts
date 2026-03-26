@@ -108,7 +108,7 @@ export async function getKeyForRoom(
   room: string,
   keySets: LiveKitKeySet[],
   forceNext: boolean,
-): Promise<{ keySet: LiveKitKeySet; index: number } | null> {
+): Promise<{ keySet: LiveKitKeySet; index: number } | { error: "room-exhausted" | "all-exhausted" } | null> {
   if (keySets.length === 0) return null;
 
   const r = getRedis();
@@ -118,14 +118,17 @@ export async function getKeyForRoom(
   }
 
   try {
-    const roomKey = `room:${room}:key`;
+    // Sanitize room code for Redis key safety (alphanumeric + dash only)
+    const safeRoom = room.replace(/[^a-zA-Z0-9-]/g, "").slice(0, 20);
+    const roomKey = `room:${safeRoom}:key`;
 
-    // Client reported connect failure - mark current key exhausted and clear mapping
+    // Client reported connect failure - mark current key exhausted
+    // Do NOT delete the room mapping (other users in the room need it)
+    // The mapping stays so subsequent joins see the exhausted state and get 429
     if (forceNext) {
       const currentKey = await r.get<number>(roomKey);
       if (currentKey !== null) {
         await r.set(`key:${currentKey}:exhausted`, "1", { ex: EXHAUSTED_TTL });
-        await r.del(roomKey); // clear mapping so room can be reassigned
       }
     }
 
@@ -139,7 +142,7 @@ export async function getKeyForRoom(
         return { keySet: keySets[existingKey]!, index: existingKey };
       }
       // Key is exhausted with active mapping - refuse (don't split room)
-      return null;
+      return { error: "room-exhausted" as const };
     }
 
     // No mapping - new room. Find least-loaded non-exhausted key.
@@ -156,8 +159,7 @@ export async function getKeyForRoom(
       .filter((i) => !exhaustionResults[i]);
 
     if (nonExhausted.length === 0) {
-      // All keys exhausted
-      return null;
+      return { error: "all-exhausted" as const };
     }
 
     // 2. Count active rooms per key (TTL-based counting via SCAN)

@@ -27,16 +27,16 @@ export async function GET(req: NextRequest) {
     }
 
     // Get the key for this room (Redis-backed with fallback to hash)
-    const active = await getKeyForRoom(room, keySets, keyHint === "next");
+    const result = await getKeyForRoom(room, keySets, keyHint === "next");
 
-    if (!active) {
-      return NextResponse.json(
-        { error: "This room has hit its session limit. Ask people in the room to create a new one, or create your own." },
-        { status: 429 },
-      );
+    if (!result || "error" in result) {
+      const msg = result?.error === "all-exhausted"
+        ? "All sessions are at capacity right now. Please try again in a few minutes."
+        : "This room has hit its session limit. Ask people in the room to create a new one, or create your own.";
+      return NextResponse.json({ error: msg }, { status: 429 });
     }
 
-    const { keySet, index } = active;
+    const { keySet, index } = result;
     const uniqueId = `${name}-${crypto.randomUUID().slice(0, 8)}`;
 
     const at = new AccessToken(keySet.apiKey, keySet.apiSecret, {
