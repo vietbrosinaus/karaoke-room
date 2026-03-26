@@ -75,6 +75,7 @@ jobs:
       - name: Compute badge
         env:
           GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
+          GIST_ID: ${{ secrets.HEALTH_BADGE_GIST_ID }}
         run: |
           OK=0
           RATELIMITED=0
@@ -124,5 +125,3 @@ jobs:
             -H "Authorization: token $GIST_TOKEN" \
             -H "Accept: application/vnd.github+json" \
             -d "$PAYLOAD"
-        env:
-          GIST_ID: ${{ secrets.HEALTH_BADGE_GIST_ID }}
