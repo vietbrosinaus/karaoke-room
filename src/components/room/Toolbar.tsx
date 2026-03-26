@@ -30,13 +30,13 @@ export function Toolbar({
     const handleClickOutside = (e: MouseEvent) => {
       if (!reactionsRef.current) return;
       const target = e.target;
-      if (!(target instanceof Node)) return;
-      if (!reactionsRef.current.contains(target)) {
+    const handleClickOutside = (e: PointerEvent) => {
+      if (reactionsRef.current && !reactionsRef.current.contains(e.target as Node)) {
         setShowMobileReactions(false);
       }
     };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("pointerdown", handleClickOutside);
+    return () => document.removeEventListener("pointerdown", handleClickOutside);
   }, [showMobileReactions]);
 
   const handleReact = useCallback((emoji: string) => {
