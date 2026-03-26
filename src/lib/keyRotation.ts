@@ -143,15 +143,13 @@ export async function getKeyForRoom(
     // on an empty set), so the window is fixed from the first report, not sliding.
     if (forceNext && currentKey !== null) {
       const reportSetKey = `key:${currentKey}:report_rooms`;
-      // SADD the room to the set
-      const added = await r.sadd(reportSetKey, room);
-      // Only set TTL if this is a new set (first member added) - prevents sliding window
-      if (added === 1) {
-        const ttl = await r.ttl(reportSetKey);
-        if (ttl < 0) {
-          // Key has no TTL (newly created or TTL was lost) - set it
-          await r.expire(reportSetKey, EXHAUST_WINDOW);
-        }
+      // SADD the room to the set so the same room only counts once
+      await r.sadd(reportSetKey, room);
+      // Ensure the window has a fixed TTL. We only set TTL when the key currently has
+      // no TTL (either newly created or TTL was lost), which avoids a sliding window.
+      const ttl = await r.ttl(reportSetKey);
+      if (ttl < 0) {
+        await r.expire(reportSetKey, EXHAUST_WINDOW);
       }
       const distinctCount = await r.scard(reportSetKey);
       if (distinctCount >= EXHAUST_THRESHOLD) {
@@ -170,6 +168,9 @@ export async function getKeyForRoom(
           "[KeyRotation] Redis mapping references missing key index",
           { room, currentKey, configuredKeyCount: keySets.length },
         );
+        // Still refresh TTL so the mapping does not expire while the room is active.
+        // Preserves room affinity once the server configuration is corrected.
+        await r.expire(roomKey, ROOM_KEY_TTL);
         return null;
       }
       const exhausted = await r.exists(`key:${currentKey}:exhausted`);
@@ -238,6 +239,9 @@ export async function getKeyForRoom(
       if (finalKey !== null && keySets[finalKey]) {
         return { keySet: keySets[finalKey]!, index: finalKey };
       }
+      // Inconsistent Redis state: we could not confirm any stored mapping.
+      // Fail closed so the caller can return a 500 rather than breaking affinity.
+      return null;
     }
 
     return { keySet: keySets[bestIdx]!, index: bestIdx };
