@@ -18,6 +18,7 @@ jobs:
           # Add more entries here when adding keys 3+
     steps:
       - name: Check LiveKit (${{ matrix.name }})
+        id: check
         env:
           LK_URL_PRIMARY: ${{ secrets.LIVEKIT_URL }}
           LK_URL_2: ${{ secrets.LIVEKIT_URL_2 }}
@@ -29,15 +30,99 @@ jobs:
 
           if [ -z "$LK_URL" ]; then
             echo "${{ matrix.name }}: not configured - skipping"
+            echo "status=skip" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           HTTP_URL=$(echo "$LK_URL" | sed 's|^wss://|https://|;s|^ws://|http://|')
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$HTTP_URL")
           if [ "$STATUS" -eq 000 ] || [ "$STATUS" -ge 500 ]; then
             echo "::error::${{ matrix.name }} is DOWN ($STATUS)"
+            echo "status=down" >> "$GITHUB_OUTPUT"
             exit 1
           fi
           if [ "$STATUS" -eq 429 ]; then
-            echo "::warning::${{ matrix.name }} is rate-limited (429) - up but throttled"
+            echo "::warning::${{ matrix.name }} is rate-limited (429)"
+            echo "status=ratelimited" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+          echo "status=ok" >> "$GITHUB_OUTPUT"
           echo "${{ matrix.name }}: OK ($STATUS)"
+
+      - name: Write result artifact
+        if: always()
+        run: |
+          mkdir -p /tmp/results
+          echo "${{ steps.check.outputs.status || 'down' }}" > "/tmp/results/${{ matrix.name }}"
+
+      - name: Upload result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: result-${{ matrix.name }}
+          path: /tmp/results/
+
+  badge:
+    needs: check
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all results
+        uses: actions/download-artifact@v4
+        with:
+          path: results/
+          merge-multiple: true
+
+      - name: Compute badge
+        env:
+          GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
+        run: |
+          OK=0
+          RATELIMITED=0
+          DOWN=0
+          TOTAL=0
+
+          for f in results/*; do
+            STATUS=$(cat "$f")
+            case "$STATUS" in
+              ok) OK=$((OK+1)); TOTAL=$((TOTAL+1)) ;;
+              ratelimited) RATELIMITED=$((RATELIMITED+1)); TOTAL=$((TOTAL+1)) ;;
+              down) DOWN=$((DOWN+1)); TOTAL=$((TOTAL+1)) ;;
+            esac
+          done
+
+          echo "OK=$OK RATELIMITED=$RATELIMITED DOWN=$DOWN TOTAL=$TOTAL"
+
+          if [ "$DOWN" -eq "$TOTAL" ] && [ "$TOTAL" -gt 0 ]; then
+            COLOR="red"
+            MSG="all down"
+          elif [ "$DOWN" -gt 0 ]; then
+            COLOR="red"
+            MSG="${DOWN}/${TOTAL} down"
+          elif [ "$RATELIMITED" -eq "$TOTAL" ] && [ "$TOTAL" -gt 0 ]; then
+            COLOR="orange"
+            MSG="all rate-limited"
+          elif [ "$RATELIMITED" -gt 0 ]; then
+            COLOR="yellow"
+            MSG="${RATELIMITED}/${TOTAL} rate-limited"
+          else
+            COLOR="brightgreen"
+            MSG="${OK}/${TOTAL} healthy"
+          fi
+
+          echo "Badge: $MSG ($COLOR)"
+
+          # Update Gist with badge JSON (if GIST_TOKEN configured)
+          if [ -z "$GIST_TOKEN" ]; then
+            echo "::warning::GIST_TOKEN not set - badge won't update. Create a Gist and add the token."
+            exit 0
+          fi
+
+          JSON="{\"schemaVersion\":1,\"label\":\"LiveKit\",\"message\":\"$MSG\",\"color\":\"$COLOR\"}"
+          # Update the gist file
+          PAYLOAD=$(printf '{"files":{"livekit-health.json":{"content":"%s"}}}' "$JSON")
+          curl -s -X PATCH "https://api.github.com/gists/$GIST_ID" \
+            -H "Authorization: token $GIST_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -d "$PAYLOAD"
+        env:
+          GIST_ID: ${{ secrets.HEALTH_BADGE_GIST_ID }}

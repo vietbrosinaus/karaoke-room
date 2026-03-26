@@ -3,7 +3,7 @@
 [![Vercel](https://github.com/vietbrosinaus/karaoke-room/actions/workflows/health-vercel.yml/badge.svg)](https://github.com/vietbrosinaus/karaoke-room/actions/workflows/health-vercel.yml)
 [![PartyKit](https://github.com/vietbrosinaus/karaoke-room/actions/workflows/health-partykit.yml/badge.svg)](https://github.com/vietbrosinaus/karaoke-room/actions/workflows/health-partykit.yml)
 [![Upstash](https://github.com/vietbrosinaus/karaoke-room/actions/workflows/health-upstash.yml/badge.svg)](https://github.com/vietbrosinaus/karaoke-room/actions/workflows/health-upstash.yml)
-[![LiveKit](https://github.com/vietbrosinaus/karaoke-room/actions/workflows/health-livekit.yml/badge.svg)](https://github.com/vietbrosinaus/karaoke-room/actions/workflows/health-livekit.yml)
+[![LiveKit](https://img.shields.io/endpoint?url=https%3A%2F%2Fgist.githubusercontent.com%2Felvistranhere%2F9578abf10f65c07ec2e82f6e272255b3%2Fraw%2Flivekit-health.json)](https://github.com/vietbrosinaus/karaoke-room/actions/workflows/health-livekit.yml)
 [![Deploy PartyKit](https://github.com/vietbrosinaus/karaoke-room/actions/workflows/deploy-partykit.yml/badge.svg)](https://github.com/vietbrosinaus/karaoke-room/actions/workflows/deploy-partykit.yml)
 
 Real-time online karaoke rooms. Join with a code, share your audio, and sing with friends.
