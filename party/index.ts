@@ -124,6 +124,7 @@ export default class KaraokeRoom implements Party.Server {
           currentSong: msg.currentSong,
           browser: msg.browser,
           lkIdentity: msg.lkIdentity,
+          autoMix: msg.autoMix === true,
         });
         break;
       case "reaction":
@@ -137,6 +138,9 @@ export default class KaraokeRoom implements Party.Server {
         break;
       case "add-to-queue":
         this.handleAddToQueue(sender, msg.targetPeerId);
+        break;
+      case "mix-adjust":
+        this.handleMixAdjust(sender, msg.voice, msg.music);
         break;
       default:
         this.send(sender, { type: "error", message: "Unknown message type" });
@@ -379,6 +383,31 @@ export default class KaraokeRoom implements Party.Server {
       if (id !== sender.id) {
         this.send(entry.ws, { type: "unmute-all" });
       }
+    }
+  }
+
+  private handleMixAdjust(sender: Party.Connection, voice: number, music: number) {
+    if (!this.currentSingerId) return;
+    if (!Number.isFinite(voice) || !Number.isFinite(music)) return;
+    const participant = this.participants.get(sender.id);
+    if (!participant) return;
+
+    const clampedVoice = Math.max(0, Math.min(1.5, voice));
+    const clampedMusic = Math.max(0, Math.min(1.5, music));
+    const isSinger = sender.id === this.currentSingerId;
+
+    if (isSinger) {
+      // Singer adjusted — broadcast to all listeners so their sliders sync
+      for (const [id, entry] of this.participants) {
+        if (id !== sender.id) {
+          this.send(entry.ws, { type: "mix-adjust", fromName: participant.name, voice: clampedVoice, music: clampedMusic });
+        }
+      }
+    } else {
+      // Listener adjusted — send to singer to apply gain + announce in chat
+      const singer = this.participants.get(this.currentSingerId);
+      if (!singer) return;
+      this.send(singer.ws, { type: "mix-adjust", fromName: participant.name, voice: clampedVoice, music: clampedMusic });
     }
   }
 
