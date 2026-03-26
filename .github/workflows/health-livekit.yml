@@ -34,9 +34,15 @@ jobs:
             exit 0
           fi
           HTTP_URL=$(echo "$LK_URL" | sed 's|^wss://|https://|;s|^ws://|http://|')
+          # LiveKit returns 426 (Upgrade Required) when healthy - normal for WebSocket servers
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$HTTP_URL")
-          if [ "$STATUS" -eq 000 ] || [ "$STATUS" -ge 500 ]; then
-            echo "::error::${{ matrix.name }} is DOWN ($STATUS)"
+          if [ "$STATUS" -eq 000 ]; then
+            echo "::error::${{ matrix.name }} is UNREACHABLE"
+            echo "status=down" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          if [ "$STATUS" -ge 500 ]; then
+            echo "::error::${{ matrix.name }} returned $STATUS"
             echo "status=down" >> "$GITHUB_OUTPUT"
             exit 1
           fi
@@ -118,9 +124,10 @@ jobs:
             exit 0
           fi
 
-          JSON="{\"schemaVersion\":1,\"label\":\"LiveKit\",\"message\":\"$MSG\",\"color\":\"$COLOR\"}"
-          # Update the gist file
-          PAYLOAD=$(printf '{"files":{"livekit-health.json":{"content":"%s"}}}' "$JSON")
+          JSON=$(jq -n --arg msg "$MSG" --arg color "$COLOR" \
+            '{schemaVersion:1,label:"LiveKit",message:$msg,color:$color}')
+          PAYLOAD=$(jq -n --arg content "$JSON" \
+            '{"files":{"livekit-health.json":{"content":$content}}}')
           curl -s -X PATCH "https://api.github.com/gists/$GIST_ID" \
             -H "Authorization: token $GIST_TOKEN" \
             -H "Accept: application/vnd.github+json" \
