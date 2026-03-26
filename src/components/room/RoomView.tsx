@@ -434,8 +434,8 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
             onMuteAll={() => { sendMuteAll(); setSingerMutedAll(true); }}
             onUnmuteAll={() => { sendUnmuteAll(); setSingerMutedAll(false); }}
             isMutedAll={singerMutedAll}
-            onMixAdjust={!isMyTurn ? (voice, music) => {
-              sendMixAdjust(voice, music);
+            onMixAdjust={!isMyTurn ? sendMixAdjust : undefined}
+            onMixAdjustDone={!isMyTurn ? (voice, music) => {
               sendChat(`adjusted mix — Voice ${Math.round(voice * 100)}%, Music ${Math.round(music * 100)}%`);
             } : undefined}
             autoMix={autoMix}
