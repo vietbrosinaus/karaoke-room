@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AccessToken, RoomConfiguration, TrackSource } from "livekit-server-sdk";
-import { getKeySets, getKeyForRoom, markKeyExhausted } from "~/lib/keyRotation";
+import { getKeySets, getKeyForRoom } from "~/lib/keyRotation";
 
 // LiveKit token endpoint with Redis-backed key rotation.
 // See docs/IDEOLOGY.md for full architecture documentation.
