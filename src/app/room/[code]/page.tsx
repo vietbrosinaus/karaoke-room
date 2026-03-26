@@ -51,8 +51,8 @@ function RoomContent() {
   const handleRename = (newName: string) => {
     const clean = sanitizeName(newName);
     setName(clean);
-    // Only persist non-Anonymous names so users can clear their name
-    if (clean !== "Anonymous") saveName(clean);
+    // saveName("") removes the entry from localStorage; non-empty persists
+    saveName(clean === "Anonymous" ? "" : clean);
   };
 
   const handleNameSubmit = (newName: string) => {

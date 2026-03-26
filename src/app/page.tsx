@@ -20,12 +20,10 @@ export default function Home() {
   const [name, setName] = useState("");
   const [error, setError] = useState("");
 
-  // Pre-fill name from localStorage (normalized)
+  // Pre-fill name from localStorage (already normalized by getSavedName)
   useEffect(() => {
     const saved = getSavedName();
-    if (!saved) return;
-    const trimmed = saved.trim().slice(0, MAX_NAME_LENGTH);
-    if (trimmed) setName(trimmed);
+    if (saved) setName(saved);
   }, []);
 
   const handleCreate = () => {
