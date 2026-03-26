@@ -66,17 +66,49 @@ function RoomContent() {
     setShowNameModal(false);
   };
 
-  // Don't mount RoomView until name is resolved — prevents connecting as "Anonymous"
-  // then switching identity after the modal submits
+  const [nameConflict, setNameConflict] = useState<{ name: string; suggestions: string[] } | null>(null);
+
+  const handleNameRejected = (info: { name: string; suggestions: string[] }) => {
+    setNameConflict(info);
+  };
+
+  const handleConflictSubmit = (newName: string) => {
+    const trimmed = newName.trim();
+    if (!trimmed) {
+      setNameConflict(null);
+      return;
+    }
+    const clean = sanitizeName(trimmed);
+    if (clean === name) {
+      // Same name as before - still taken, don't close modal
+      return;
+    }
+    setName(clean);
+    saveName(clean === "Anonymous" ? "" : clean);
+    setNameConflict(null);
+  };
+
+  // Don't mount RoomView until INITIAL name is resolved (first visit only)
   if (showNameModal) {
     return <NameModal onSubmit={handleNameSubmit} />;
   }
 
-  return <RoomView roomCode={code} playerName={name} onRename={handleRename} />;
+  return (
+    <>
+      <RoomView roomCode={code} playerName={name} onRename={handleRename} onNameRejected={handleNameRejected} />
+      {/* Name conflict overlay - does NOT unmount RoomView */}
+      {nameConflict && (
+        <NameModal onSubmit={handleConflictSubmit} conflict={nameConflict} />
+      )}
+    </>
+  );
 }
 
-function NameModal({ onSubmit }: { onSubmit: (name: string) => void }) {
-  const [draft, setDraft] = useState("");
+function NameModal({ onSubmit, conflict }: { onSubmit: (name: string) => void; conflict?: { name: string; suggestions: string[] } | null }) {
+  const [draft, setDraft] = useState(conflict?.name ?? "");
+
+  // Sync draft if conflict changes (e.g. multiple name-taken events)
+  useEffect(() => { if (conflict?.name) setDraft(conflict.name); }, [conflict?.name]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onSubmit(""); };
@@ -96,13 +128,30 @@ function NameModal({ onSubmit }: { onSubmit: (name: string) => void }) {
       >
         <h2
           className="mb-1 text-sm font-bold"
-          style={{ fontFamily: "var(--font-display)", color: "var(--color-text-primary)" }}
+          style={{ fontFamily: "var(--font-display)", color: conflict ? "var(--color-accent)" : "var(--color-text-primary)" }}
         >
-          What should we call you?
+          {conflict ? "Name already taken" : "What should we call you?"}
         </h2>
         <p className="mb-4 text-xs" style={{ color: "var(--color-text-muted)" }}>
-          Or skip to join as Anonymous.
+          {conflict
+            ? `Someone in the room is already named "${conflict.name}". Pick a different name.`
+            : "Or skip to join as Anonymous."
+          }
         </p>
+        {conflict && conflict.suggestions.length > 0 && (
+          <div className="mb-3 flex flex-wrap gap-1.5">
+            {conflict.suggestions.map((s) => (
+              <button
+                key={s}
+                onClick={() => onSubmit(s)}
+                className="cursor-pointer rounded-md px-2 py-1 text-xs transition-all hover:brightness-110"
+                style={{ background: "var(--color-dark-card)", color: "var(--color-text-primary)", border: "1px solid var(--color-dark-border)" }}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        )}
         <label htmlFor="name-input" className="sr-only">Your name</label>
         <input
           id="name-input"

@@ -8,7 +8,7 @@ interface ParticipantEntry {
 
 const MAX_CHAT_MESSAGES = 100;
 const MAX_CHAT_LENGTH = 500;
-const MAX_NAME_LENGTH = 30;
+const MAX_NAME_LENGTH = 20; // must match client-side MAX_NAME_LENGTH in src/lib/playerName.ts
 const MAX_BROWSER_LENGTH = 64;
 const ALLOWED_EMOJIS = new Set(["🔥", "👏", "😍", "🎵", "💯", "🙌", "😂", "💀", "👎", "😴"]);
 const HEARTBEAT_INTERVAL_MS = 15_000; // ping every 15s
@@ -86,14 +86,14 @@ export default class KaraokeRoom implements Party.Server {
     this.startHeartbeat();
     this.send(conn, { type: "you-joined", peerId: conn.id });
 
-    // Evict connections that don't send "join" within 10s
+    // Evict connections that don't join within 30s (extra time for name-taken flow)
     setTimeout(() => {
       if (!this.participants.has(conn.id)) {
         console.log(`[KaraokeRoom] Connection ${conn.id} never joined - disconnecting`);
         this.lastPong.delete(conn.id);
         try { conn.close(); } catch { /* already closed */ }
       }
-    }, 10_000);
+    }, 30_000);
   }
 
   onMessage(message: string | ArrayBuffer | ArrayBufferView, sender: Party.Connection) {
@@ -219,8 +219,51 @@ export default class KaraokeRoom implements Party.Server {
 
     const trimmedName = name.trim().slice(0, MAX_NAME_LENGTH);
 
-    // Handle re-join: update name if already present
+    // Check for duplicate names (case-insensitive)
+    // Allow "Anonymous" duplicates - multiple unnamed users is expected
+    // Skip check for existing participants updating their own name (rename flow)
     const existing = this.participants.get(sender.id);
+    const isAnonymous = trimmedName.toLowerCase() === "anonymous";
+
+    // Find any existing participant with the same name (not this connection)
+    let duplicatePeerId: string | null = null;
+    if (!isAnonymous) {
+      const now = Date.now();
+      for (const [id, p] of this.participants) {
+        if (p.name.toLowerCase() === trimmedName.toLowerCase() && id !== sender.id) {
+          // Check if old connection is stale (no pong for >20s - likely a refresh)
+          const lastPong = this.lastPong.get(id) ?? 0;
+          if (now - lastPong > 20_000) {
+            // Stale ghost from refresh - evict and close the old socket
+            try { p.ws.close(); } catch { /* already closed */ }
+            this.removeParticipant(id);
+          } else {
+            // Active connection - real duplicate
+            duplicatePeerId = id;
+          }
+          break;
+        }
+      }
+    }
+
+    if (duplicatePeerId) {
+      const suggestions: string[] = [];
+      for (let i = 2; i <= 10; i++) {
+        const suffix = String(i);
+        // Truncate base name to make room for suffix within MAX_NAME_LENGTH
+        const base = trimmedName.slice(0, MAX_NAME_LENGTH - suffix.length);
+        const candidate = `${base}${suffix}`;
+        const taken = Array.from(this.participants.values()).some(
+          (p) => p.name.toLowerCase() === candidate.toLowerCase()
+        );
+        if (!taken && candidate.toLowerCase() !== trimmedName.toLowerCase()) suggestions.push(candidate);
+        if (suggestions.length >= 3) break;
+      }
+      this.send(sender, { type: "name-taken", name: trimmedName, suggestions });
+      return;
+    }
+
+    // Update name if already a participant (rename), otherwise add new
     if (existing) {
       existing.name = trimmedName;
     } else {

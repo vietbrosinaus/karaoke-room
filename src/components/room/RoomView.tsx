@@ -23,9 +23,10 @@ interface RoomViewProps {
   roomCode: string;
   playerName: string;
   onRename?: (newName: string) => void;
+  onNameRejected?: (info: { name: string; suggestions: string[] }) => void;
 }
 
-export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
+export function RoomView({ roomCode, playerName, onRename, onNameRejected }: RoomViewProps) {
   const router = useRouter();
   const [browser] = useState<BrowserInfo>(() =>
     typeof window !== "undefined"
@@ -59,6 +60,8 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
     clearPendingMixAdjust,
     mutedBySinger,
     pendingMixAdjust,
+    nameTaken,
+    clearNameTaken,
     chatMessages,
     participantStatus,
     reactions,
@@ -217,7 +220,14 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
     clearPendingMixAdjust();
   }, [pendingMixAdjust, isMyTurn, setMixMicGain, setMixMusicGain, clearPendingMixAdjust, broadcastMix]);
 
-  // LiveKit identity for status updates — must be before statusCtxRef
+  // Forward name-taken rejection to parent so it can show the name modal
+  useEffect(() => {
+    if (!nameTaken) return;
+    onNameRejected?.(nameTaken);
+    clearNameTaken(); // always clear to prevent re-firing
+  }, [nameTaken, onNameRejected, clearNameTaken]);
+
+  // LiveKit identity for status updates - must be before statusCtxRef
   const lkIdentity = room?.localParticipant?.identity ?? null;
 
   // Listen for manual song name from singer — ref-stable to avoid re-registration

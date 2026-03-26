@@ -38,6 +38,8 @@ interface UseRoomStateReturn {
   clearPendingMixAdjust: () => void;
   mutedBySinger: string | null;
   pendingMixAdjust: { fromName: string; voice: number; music: number } | null;
+  nameTaken: { name: string; suggestions: string[] } | null;
+  clearNameTaken: () => void;
   chatMessages: ChatMessage[];
   participantStatus: Record<string, ParticipantStatus>;
   reactions: Reaction[];
@@ -64,6 +66,7 @@ export function useRoomState({
   const [reactions, setReactions] = useState<Reaction[]>([]);
   const [mutedBySinger, setMutedBySinger] = useState<string | null>(null);
   const [pendingMixAdjust, setPendingMixAdjust] = useState<{ fromName: string; voice: number; music: number } | null>(null);
+  const [nameTaken, setNameTaken] = useState<{ name: string; suggestions: string[] } | null>(null);
   const reactionIdRef = useRef(0);
   const hasSentJoinRef = useRef(false);
   const onRawMessageRef = useRef(onRawMessage);
@@ -150,6 +153,10 @@ export function useRoomState({
       case "mix-adjust":
         console.log("[RoomState] Mix adjusted by:", msg.fromName, "voice:", msg.voice, "music:", msg.music);
         setPendingMixAdjust({ fromName: msg.fromName, voice: msg.voice, music: msg.music });
+        break;
+      case "name-taken":
+        console.log("[RoomState] Name taken:", msg.name, "suggestions:", msg.suggestions);
+        setNameTaken({ name: msg.name, suggestions: msg.suggestions });
         break;
       case "you-joined":
         console.log("[RoomState] My peer ID:", msg.peerId);
@@ -240,6 +247,10 @@ export function useRoomState({
     setPendingMixAdjust(null);
   }, []);
 
+  const clearNameTaken = useCallback(() => {
+    setNameTaken(null);
+  }, []);
+
   const isMyTurn = myPeerId !== null && roomState.currentSingerId === myPeerId;
 
   return {
@@ -261,6 +272,8 @@ export function useRoomState({
     clearPendingMixAdjust,
     mutedBySinger,
     pendingMixAdjust,
+    nameTaken,
+    clearNameTaken,
     chatMessages,
     participantStatus,
     reactions,
