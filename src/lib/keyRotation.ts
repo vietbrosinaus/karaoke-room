@@ -118,9 +118,12 @@ export async function getKeyForRoom(
   }
 
   try {
-    // Sanitize room code for Redis key safety (alphanumeric + dash only)
-    const safeRoom = room.replace(/[^a-zA-Z0-9-]/g, "").slice(0, 20);
-    const roomKey = `room:${safeRoom}:key`;
+    // Validate room code format (alphanumeric + dash, 1-20 chars)
+    // Reject invalid codes rather than lossy sanitization (which could collide distinct rooms)
+    if (!/^[a-zA-Z0-9-]{1,20}$/.test(room)) {
+      return null;
+    }
+    const roomKey = `room:${room}:key`;
 
     // Client reported connect failure - mark current key exhausted
     // Do NOT delete the room mapping (other users in the room need it)

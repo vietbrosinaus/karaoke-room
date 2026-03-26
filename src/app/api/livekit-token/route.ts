@@ -18,6 +18,14 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    // Validate room code format (alphanumeric + dash, 1-20 chars)
+    if (!/^[a-zA-Z0-9-]{1,20}$/.test(room)) {
+      return NextResponse.json(
+        { error: "Invalid room code" },
+        { status: 400 },
+      );
+    }
+
     const keySets = getKeySets();
     if (keySets.length === 0) {
       return NextResponse.json(
