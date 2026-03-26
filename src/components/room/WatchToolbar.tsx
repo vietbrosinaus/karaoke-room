@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Pause, Play, SkipForward, Link as LinkIcon, X } from "lucide-react";
+import { Mic, MicOff, Pause, Play, SkipForward, Link as LinkIcon, X } from "lucide-react";
 import { extractYouTubeVideoId, validateYouTubeVideo } from "~/lib/youtube";
 import type { RoomState } from "~/types/room";
 import type { WatchPlayerApi } from "./WatchPlayer";
@@ -9,13 +9,15 @@ import type { WatchPlayerApi } from "./WatchPlayer";
 interface WatchToolbarProps {
   roomState: RoomState;
   myPeerId: string | null;
+  isMicEnabled: boolean;
+  toggleMic: () => Promise<void>;
   playerApi: WatchPlayerApi | null;
   onQueueAdd: (videoId: string, title: string) => void;
   onSync: (state: "playing" | "paused", time: number) => void;
   onSkip: () => void;
 }
 
-export function WatchToolbar({ roomState, myPeerId, playerApi, onQueueAdd, onSync, onSkip }: WatchToolbarProps) {
+export function WatchToolbar({ roomState, myPeerId, isMicEnabled, toggleMic, playerApi, onQueueAdd, onSync, onSkip }: WatchToolbarProps) {
   const [url, setUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isValidating, setIsValidating] = useState(false);
@@ -92,6 +94,22 @@ export function WatchToolbar({ roomState, myPeerId, playerApi, onQueueAdd, onSyn
       }}
     >
       <div className="flex flex-wrap items-center gap-2">
+        {/* Mic toggle (watch mode still needs mute/unmute) */}
+        <button
+          onClick={toggleMic}
+          className="inline-flex shrink-0 cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition-all active:scale-95"
+          style={{
+            fontFamily: "var(--font-display)",
+            borderColor: "rgba(212, 160, 23, 0.25)",
+            background: isMicEnabled ? "rgba(212, 160, 23, 0.10)" : "rgba(212, 160, 23, 0.18)",
+            color: "var(--color-primary)",
+          }}
+          title={isMicEnabled ? "Mute microphone" : "Unmute microphone"}
+        >
+          {isMicEnabled ? <Mic size={14} /> : <MicOff size={14} />}
+          {isMicEnabled ? "Mute" : "Unmute"}
+        </button>
+
         <button
           className="inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
           style={{
