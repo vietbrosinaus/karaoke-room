@@ -39,8 +39,8 @@ jobs:
           RESPONSE=$(curl -s -w "\n%{http_code}" https://karaoke-room.elvistranhere.partykit.dev/parties/main/healthcheck)
           HTTP_CODE=$(echo "$RESPONSE" | tail -1)
           BODY=$(echo "$RESPONSE" | head -1)
-          if [ "$HTTP_CODE" -eq 000 ]; then
-            echo "::error::PartyKit is unreachable"
+          if [ "$HTTP_CODE" -eq 000 ] || [ "$HTTP_CODE" -ge 500 ]; then
+            echo "::error::PartyKit returned $HTTP_CODE"
             exit 1
           fi
           echo "OK ($HTTP_CODE) - $BODY"
