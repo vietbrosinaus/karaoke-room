@@ -5,7 +5,7 @@
  * - New rooms assigned to the key with fewest active rooms (TTL-based counting)
  * - Existing rooms always use their assigned key (room affinity, no split)
  * - Exhausted keys are marked and skipped for new assignments
- * - Falls back to in-memory hash if Redis is unreachable
+ * - Falls back to deterministic hash if Redis is unreachable
  *
  * Room counts use TTL-based counting: each room:X:key mapping has a 1hr TTL.
  * To find the least-loaded key, we count active mappings per key via SCAN.
@@ -14,6 +14,7 @@
  * See docs/IDEOLOGY.md for full architecture decisions.
  */
 
+import "server-only";
 import { Redis } from "@upstash/redis";
 
 interface LiveKitKeySet {
@@ -64,6 +65,8 @@ function hashRoomToKey(room: string, total: number): number {
 
 const ROOM_KEY_TTL = 3600;     // 1 hour - room-to-key mapping
 const EXHAUSTED_TTL = 300;     // 5 min - key exhaustion cooldown
+const EXHAUST_THRESHOLD = 3;   // require 3+ distinct rooms to report before marking key exhausted
+const EXHAUST_WINDOW = 60;     // count reports within 60s window
 
 /**
  * Count active rooms per key using SCAN (TTL-based counting).
@@ -102,7 +105,7 @@ async function countRoomsPerKey(r: Redis, totalKeys: number): Promise<number[]> 
  * - Existing rooms: use stored mapping (room affinity)
  * - New rooms: least-loaded non-exhausted key, assigned with SET NX (atomic)
  * - Exhausted key + existing mapping: return null (429, never split)
- * - Redis down: fall back to deterministic hash
+ * - Redis down: fall back to deterministic hash function
  */
 export async function getKeyForRoom(
   room: string,
@@ -122,13 +125,20 @@ export async function getKeyForRoom(
     // Here we just construct the Redis key from the already-validated, uppercased room code.
     const roomKey = `room:${room}:key`;
 
-    // Client reported connect failure - mark current key exhausted
-    // Do NOT delete the room mapping (other users in the room need it)
-    // The mapping stays so subsequent joins see the exhausted state and get 429
+    // Client reported connect failure - mark current key exhausted only after
+    // multiple distinct rooms report the same key (prevents single-client DoS).
+    // Each report increments key:N:reports (60s window). At threshold, mark exhausted.
     if (forceNext) {
       const currentKey = await r.get<number>(roomKey);
       if (currentKey !== null) {
-        await r.set(`key:${currentKey}:exhausted`, "1", { ex: EXHAUSTED_TTL });
+        const reportKey = `key:${currentKey}:reports`;
+        const count = await r.incr(reportKey);
+        if (count === 1) {
+          await r.expire(reportKey, EXHAUST_WINDOW);
+        }
+        if (count >= EXHAUST_THRESHOLD) {
+          await r.set(`key:${currentKey}:exhausted`, "1", { ex: EXHAUSTED_TTL });
+        }
       }
     }
 
@@ -191,11 +201,14 @@ export async function getKeyForRoom(
       if (assignedKey !== null && keySets[assignedKey]) {
         return { keySet: keySets[assignedKey]!, index: assignedKey };
       }
+      // Winner's key vanished (theoretically impossible with 1hr TTL, but handle
+      // gracefully). Persist our choice so the room has a consistent mapping.
+      await r.set(roomKey, bestIdx, { ex: ROOM_KEY_TTL });
     }
 
     return { keySet: keySets[bestIdx]!, index: bestIdx };
   } catch (err) {
-    // Redis error - fall back to hash
+    // Redis error - fall back to deterministic hash function
     console.error("[KeyRotation] Redis error, falling back to hash:", err);
     const idx = hashRoomToKey(room, keySets.length);
     return { keySet: keySets[idx]!, index: idx };
