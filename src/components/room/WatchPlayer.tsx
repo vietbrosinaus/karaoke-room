@@ -272,14 +272,8 @@ export function WatchPlayer({ videoId, title, isLeader, watchSync, onSync, onAdv
           <button
             onClick={() => {
               setNeedsTap(false);
-              isProcessingSyncRef.current = true;
-              try {
-                playerRef.current?.playVideo();
-              } finally {
-                setTimeout(() => {
-                  isProcessingSyncRef.current = false;
-                }, 0);
-              }
+              // User-initiated play should propagate via onStateChange -> onSync.
+              playerRef.current?.playVideo();
             }}
             className="absolute inset-0 flex cursor-pointer items-center justify-center rounded-xl"
             style={{ background: "rgba(9, 9, 11, 0.55)" }}

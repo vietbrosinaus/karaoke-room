@@ -38,16 +38,18 @@
 }
 
 [data-mode="watch"] {
-  --color-primary: #D4A017;
-  --color-primary-dim: rgba(212, 160, 23, 0.12);
-  --color-accent: #F5E6C8;
-  --color-accent-dim: rgba(245, 230, 200, 0.10);
   --watch-glow-rgb: 212 160 23;
+  --watch-accent-rgb: 245 230 200;
+  --color-primary: rgb(var(--watch-glow-rgb));
+  --color-primary-dim: rgb(var(--watch-glow-rgb) / 0.12);
+  --color-accent: rgb(var(--watch-accent-rgb));
+  --color-accent-dim: rgb(var(--watch-accent-rgb) / 0.10);
 }
 
 /* Fallback value (in case watch-glow renders outside watch mode). */
 @theme {
   --watch-glow-rgb: 212 160 23;
+  --watch-accent-rgb: 245 230 200;
 }
 
 main[data-mode] {

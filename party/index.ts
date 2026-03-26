@@ -808,7 +808,7 @@ export default class KaraokeRoom implements Party.Server {
   }
 
   private pickFallbackWatchLeaderId(): string | null {
-    // Prefer current video's submitter if they are connected (watchLeaderId is also set to submitter on start)
+    // Prefer existing watch leader if connected, otherwise first connected participant.
     if (this.watchLeaderId && this.participants.has(this.watchLeaderId)) return this.watchLeaderId;
     for (const [id] of this.participants) return id;
     return null;
