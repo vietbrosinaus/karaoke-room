@@ -348,6 +348,7 @@ export function useLiveKit({
       // Abort any in-progress mic check and restore remote audio
       micCheckAbortRef.current?.();
       micCheckAbortRef.current = null;
+      if (micErrorTimerRef.current) { clearTimeout(micErrorTimerRef.current); micErrorTimerRef.current = null; }
       document.querySelectorAll<HTMLAudioElement>('audio[id^="lk-audio-"]').forEach((el) => {
         const saved = el.dataset.savedVolume;
         if (saved !== undefined) { el.volume = parseFloat(saved); delete el.dataset.savedVolume; }
@@ -864,6 +865,7 @@ export function useLiveKit({
   // --- Microphone ---
 
   const isTogglingMicRef = useRef(false);
+  const micErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const toggleMic = useCallback(async () => {
     const room = roomRef.current;
     if (!room || !room.localParticipant || isTogglingMicRef.current) return;
@@ -932,7 +934,22 @@ export function useLiveKit({
       console.log("[LiveKit] Mic is now", newState ? "ON" : "OFF");
     } catch (err) {
       console.error("[LiveKit] Mic error:", err);
-      setError(err instanceof Error ? err.message : "Mic failed");
+      const errName = err instanceof Error ? err.name : "";
+      const isTransient = errName === "NotAllowedError" || errName === "NotFoundError";
+      const msg = errName === "NotAllowedError"
+        ? "Mic permission needed — click Unmute again"
+        : errName === "NotFoundError"
+          ? "No microphone found — check your device"
+          : (err instanceof Error ? err.message : "Mic failed");
+      setError(msg);
+      // Clear previous timer, schedule new one — only one timer active at a time
+      if (micErrorTimerRef.current) clearTimeout(micErrorTimerRef.current);
+      if (isTransient) {
+        micErrorTimerRef.current = setTimeout(() => {
+          setError((prev) => prev === msg ? null : prev);
+          micErrorTimerRef.current = null;
+        }, 3000);
+      }
     } finally {
       isTogglingMicRef.current = false;
     }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import type { Room } from "livekit-client";
 import { Track } from "livekit-client";
 
@@ -8,68 +8,36 @@ interface AudioVisualizerProps {
   room: Room | null;
   isActive: boolean;
   children: React.ReactNode;
-  ambientId?: string; // ID of the ambient background div to pulse
+  ambientId?: string;
 }
 
-// Shared analyser
-let vizCtx: AudioContext | null = null;
-let vizAnalyser: AnalyserNode | null = null;
-let vizSource: MediaStreamAudioSourceNode | null = null;
-let lastTrackId: string | null = null;
-let dataBuffer: Uint8Array | null = null;
+// Per-instance state is now inside the component via refs (not module-level)
+// to avoid cross-instance cache contamination.
 
-function getOrSetupAnalyser(room: Room | null): AnalyserNode | null {
-  if (!room) return null;
-
-  let mediaTrack: MediaStreamTrack | null = null;
-
+function findMusicTrack(room: Room): MediaStreamTrack | null {
+  // Priority 1: ScreenShareAudio from remote participants (singer's mixed track)
   for (const [, participant] of room.remoteParticipants) {
     for (const [, pub] of participant.trackPublications) {
-      if (pub.track && pub.isSubscribed && pub.track.kind === Track.Kind.Audio) {
-        if (pub.source === Track.Source.ScreenShareAudio) {
-          mediaTrack = pub.track.mediaStreamTrack;
-          break;
-        }
-        if (!mediaTrack) mediaTrack = pub.track.mediaStreamTrack;
+      if (pub.track && pub.isSubscribed && pub.track.kind === Track.Kind.Audio && pub.source === Track.Source.ScreenShareAudio) {
+        return pub.track.mediaStreamTrack;
       }
     }
-    if (mediaTrack) break;
   }
 
-  if (!mediaTrack) {
-    const localPub = room.localParticipant.getTrackPublication(Track.Source.ScreenShareAudio);
-    if (localPub?.track) mediaTrack = localPub.track.mediaStreamTrack;
+  // Priority 2: Local ScreenShareAudio (singer's own view)
+  const localPub = room.localParticipant.getTrackPublication(Track.Source.ScreenShareAudio);
+  if (localPub?.track) return localPub.track.mediaStreamTrack;
+
+  // Priority 3: DOM fallback — audio element tagged as music
+  const audioEl = document.querySelector<HTMLAudioElement>('audio[data-lk-type="music"]');
+  if (audioEl?.srcObject instanceof MediaStream) {
+    return audioEl.srcObject.getAudioTracks()[0] ?? null;
   }
 
-  // Fallback: grab from any music audio element in the DOM
-  if (!mediaTrack) {
-    const audioEl = document.querySelector<HTMLAudioElement>('audio[data-lk-type="music"]');
-    if (audioEl?.srcObject instanceof MediaStream) {
-      mediaTrack = audioEl.srcObject.getAudioTracks()[0] ?? null;
-    }
-  }
-
-  if (!mediaTrack || mediaTrack.readyState !== "live") return null;
-  if (mediaTrack.id === lastTrackId && vizAnalyser) return vizAnalyser;
-  lastTrackId = mediaTrack.id;
-
-  if (!vizCtx || vizCtx.state === "closed") {
-    vizCtx = new AudioContext({ sampleRate: 48000 });
-  }
-
-  vizSource?.disconnect();
-  vizSource = vizCtx.createMediaStreamSource(new MediaStream([mediaTrack]));
-  vizAnalyser = vizCtx.createAnalyser();
-  vizAnalyser.fftSize = 64; // 32 bins — we only need overall energy
-  vizAnalyser.smoothingTimeConstant = 0.85;
-  vizSource.connect(vizAnalyser);
-  dataBuffer = new Uint8Array(vizAnalyser.frequencyBinCount);
-
-  return vizAnalyser;
+  return null;
 }
 
-// Compute audio energy bands for the glow effect
-function getAudioEnergy(analyser: AnalyserNode | null): { bass: number; mid: number; high: number; overall: number } {
+function getAudioEnergy(analyser: AnalyserNode | null, dataBuffer: Uint8Array | null): { bass: number; mid: number; high: number; overall: number } {
   if (!analyser || !dataBuffer) return { bass: 0, mid: 0, high: 0, overall: 0 };
 
   analyser.getByteFrequencyData(dataBuffer as Uint8Array<ArrayBuffer>);
@@ -85,7 +53,7 @@ function getAudioEnergy(analyser: AnalyserNode | null): { bass: number; mid: num
   bass = bass / (third * 255);
   mid = mid / (third * 255);
   high = high / ((len - third * 2) * 255);
-  const overall = (bass * 0.5 + mid * 0.35 + high * 0.15); // weighted toward bass
+  const overall = (bass * 0.5 + mid * 0.35 + high * 0.15);
 
   return { bass, mid, high, overall };
 }
@@ -94,13 +62,58 @@ export function AudioVisualizer({ room, isActive, children, ambientId }: AudioVi
   const rafRef = useRef<number>(0);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const trackCheckCounter = useRef(0);
-  const cachedAnalyser = useRef<AnalyserNode | null>(null);
-  const [glow, setGlow] = useState({ bass: 0, mid: 0, high: 0, overall: 0 });
+
+  // Per-instance audio state (not shared module-level)
+  const vizCtxRef = useRef<AudioContext | null>(null);
+  const vizSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const vizAnalyserRef = useRef<AnalyserNode | null>(null);
+  const lastTrackIdRef = useRef<string | null>(null);
+  const dataBufferRef = useRef<Uint8Array | null>(null);
+
+  const setupAnalyser = (track: MediaStreamTrack) => {
+    // Same track — reuse
+    if (track.id === lastTrackIdRef.current && vizAnalyserRef.current) return;
+
+    lastTrackIdRef.current = track.id;
+
+    if (!vizCtxRef.current || vizCtxRef.current.state === "closed") {
+      vizCtxRef.current = new AudioContext({ sampleRate: 48000 });
+    }
+
+    vizSourceRef.current?.disconnect();
+    vizSourceRef.current = vizCtxRef.current.createMediaStreamSource(new MediaStream([track]));
+    vizAnalyserRef.current = vizCtxRef.current.createAnalyser();
+    vizAnalyserRef.current.fftSize = 64;
+    vizAnalyserRef.current.smoothingTimeConstant = 0.85;
+    vizSourceRef.current.connect(vizAnalyserRef.current);
+    dataBufferRef.current = new Uint8Array(vizAnalyserRef.current.frequencyBinCount);
+  };
+
+  const cleanupViz = () => {
+    vizSourceRef.current?.disconnect();
+    vizSourceRef.current = null;
+    vizAnalyserRef.current = null;
+    lastTrackIdRef.current = null;
+    dataBufferRef.current = null;
+    if (vizCtxRef.current && vizCtxRef.current.state !== "closed") {
+      void vizCtxRef.current.close().catch(() => {});
+    }
+    vizCtxRef.current = null;
+  };
 
   useEffect(() => {
     if (!isActive || !room) {
       cancelAnimationFrame(rafRef.current);
-      setGlow({ bass: 0, mid: 0, high: 0, overall: 0 });
+      cleanupViz();
+      // Reset glow + ambient background
+      if (wrapperRef.current) {
+        wrapperRef.current.style.boxShadow = "";
+        wrapperRef.current.style.borderColor = "";
+      }
+      if (ambientId) {
+        const ambientEl = document.getElementById(ambientId);
+        if (ambientEl) ambientEl.style.background = "";
+      }
       return;
     }
 
@@ -110,21 +123,26 @@ export function AudioVisualizer({ room, isActive, children, ambientId }: AudioVi
       if (!running) return;
 
       trackCheckCounter.current++;
-      if (trackCheckCounter.current >= 30 || !cachedAnalyser.current) {
-        cachedAnalyser.current = getOrSetupAnalyser(room);
+      // Check for track every 10 frames (~170ms) instead of 30 (~500ms)
+      if (trackCheckCounter.current >= 10 || !vizAnalyserRef.current) {
         trackCheckCounter.current = 0;
+        const track = findMusicTrack(room);
+        if (track && track.readyState === "live") {
+          setupAnalyser(track);
+        } else if (vizAnalyserRef.current) {
+          // Track went dead (singer changed) — clear analyser so next poll finds new track
+          cleanupViz();
+        }
       }
 
-      const energy = getAudioEnergy(cachedAnalyser.current);
+      const energy = getAudioEnergy(vizAnalyserRef.current, dataBufferRef.current);
 
-      // Apply glow via DOM style directly (avoids React re-render at 60fps)
       const el = wrapperRef.current;
       if (el) {
         const intensity = energy.overall;
-        const spread = Math.round(12 + intensity * 36); // 12-48px
+        const spread = Math.round(12 + intensity * 36);
         const opacity = Math.min(intensity * 1.5, 0.85);
 
-        // Multi-color glow: violet from bass, amber from highs
         const violetGlow = `0 0 ${spread}px rgba(139, 92, 246, ${opacity * Math.max(energy.bass, 0.3)})`;
         const amberGlow = `0 0 ${Math.round(spread * 0.8)}px rgba(245, 158, 11, ${opacity * energy.high * 2.5})`;
         const innerGlow = `inset 0 0 ${Math.round(spread * 0.5)}px rgba(139, 92, 246, ${opacity * 0.4})`;
@@ -135,14 +153,12 @@ export function AudioVisualizer({ room, isActive, children, ambientId }: AudioVi
           : "";
       }
 
-      // Ambient viewport background — subtle color shift with music
       if (ambientId) {
         const ambientEl = document.getElementById(ambientId);
         if (ambientEl) {
-          // Bass → violet blob (bottom-left), Highs → amber blob (top-right)
-          const bassOpacity = 0.03 + energy.bass * 0.1; // 3% → 13%
-          const highOpacity = 0.02 + energy.high * 0.08; // 2% → 10%
-          const bassSize = 40 + energy.bass * 20; // 40% → 60% spread
+          const bassOpacity = 0.03 + energy.bass * 0.1;
+          const highOpacity = 0.02 + energy.high * 0.08;
+          const bassSize = 40 + energy.bass * 20;
           const highSize = 35 + energy.high * 15;
 
           ambientEl.style.background =
@@ -159,18 +175,17 @@ export function AudioVisualizer({ room, isActive, children, ambientId }: AudioVi
     return () => {
       running = false;
       cancelAnimationFrame(rafRef.current);
-      vizSource?.disconnect();
-      vizSource = null;
-      vizAnalyser = null;
-      lastTrackId = null;
-      cachedAnalyser.current = null;
-      // Reset glow
+      cleanupViz();
       if (wrapperRef.current) {
         wrapperRef.current.style.boxShadow = "";
         wrapperRef.current.style.borderColor = "";
       }
+      if (ambientId) {
+        const ambientEl = document.getElementById(ambientId);
+        if (ambientEl) ambientEl.style.background = "";
+      }
     };
-  }, [isActive, room]);
+  }, [isActive, room, ambientId]);
 
   return (
     <div

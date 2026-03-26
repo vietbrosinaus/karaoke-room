@@ -16,6 +16,7 @@ export interface ParticipantStatus {
   currentSong: string | null;
   browser?: string;
   lkIdentity?: string;
+  autoMix?: boolean;
 }
 
 export interface RoomState {
@@ -35,7 +36,7 @@ export type ClientMessage =
   | { type: "finish-singing" }
   | { type: "signal"; to: string; payload: SignalPayload }
   | { type: "chat"; text: string }
-  | { type: "status-update"; isMuted: boolean; isSharingAudio: boolean; currentSong: string | null; browser?: string; lkIdentity?: string }
+  | { type: "status-update"; isMuted: boolean; isSharingAudio: boolean; currentSong: string | null; browser?: string; lkIdentity?: string; autoMix?: boolean }
   | { type: "reaction"; emoji: string }
   | { type: "mute-all" }
   | { type: "unmute-all" }

@@ -124,6 +124,7 @@ export default class KaraokeRoom implements Party.Server {
           currentSong: msg.currentSong,
           browser: msg.browser,
           lkIdentity: msg.lkIdentity,
+          autoMix: msg.autoMix === true,
         });
         break;
       case "reaction":

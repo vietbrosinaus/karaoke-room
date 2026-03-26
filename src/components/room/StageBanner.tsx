@@ -31,6 +31,8 @@ interface StageBannerProps {
   onAutoMixChange?: (on: boolean) => void;
   // Collaborative mix (listener can adjust singer's mix)
   onMixAdjust?: (voice: number, music: number) => void;
+  onMixAdjustDone?: (voice: number, music: number) => void;
+  singerAutoMix?: boolean;
   mixVoiceValue?: number;
   mixMusicValue?: number;
   // Recording
@@ -60,6 +62,8 @@ export function StageBanner({
   onUnmuteAll,
   isMutedAll = false,
   onMixAdjust,
+  onMixAdjustDone,
+  singerAutoMix = false,
   mixVoiceValue = 100,
   mixMusicValue = 70,
   autoMix = false,
@@ -127,8 +131,13 @@ export function StageBanner({
           </div>
         )}
         {/* Collaborative mix — adjust singer's voice/music balance for everyone */}
-        {onMixAdjust && (
-          <ListenerMixControl voiceValue={mixVoiceValue} musicValue={mixMusicValue} onAdjust={onMixAdjust} />
+        {onMixAdjust && !singerAutoMix && (
+          <ListenerMixControl voiceValue={mixVoiceValue} musicValue={mixMusicValue} onAdjust={onMixAdjust} onDone={onMixAdjustDone} />
+        )}
+        {singerAutoMix && (
+          <p className="mt-2 text-center text-[10px]" style={{ color: "var(--color-primary)" }}>
+            Auto Mix is active — music adjusts automatically
+          </p>
         )}
 
       </div>
@@ -367,7 +376,7 @@ function SongNameInput({ initial, onSet }: { initial: string; onSet: (name: stri
   );
 }
 
-function ListenerMixControl({ voiceValue, musicValue, onAdjust }: { voiceValue: number; musicValue: number; onAdjust: (voice: number, music: number) => void }) {
+function ListenerMixControl({ voiceValue, musicValue, onAdjust, onDone }: { voiceValue: number; musicValue: number; onAdjust: (voice: number, music: number) => void; onDone?: (voice: number, music: number) => void }) {
   const [expanded, setExpanded] = useState(false);
   const [voice, setVoice] = useState(voiceValue);
   const [music, setMusic] = useState(musicValue);
@@ -398,14 +407,21 @@ function ListenerMixControl({ voiceValue, musicValue, onAdjust }: { voiceValue: 
     );
   }
 
+  const handleRelease = () => {
+    // Send chat announcement once when user releases the slider
+    onDone?.(voice / 100, music / 100);
+  };
+
   return (
     <div className="mt-2 space-y-1.5 border-t pt-2" style={{ borderColor: "var(--color-dark-border)" }}>
       <div className="flex items-center justify-between">
         <span className="text-[9px] uppercase tracking-wider" style={{ color: "var(--color-text-muted)" }}>Adjust for everyone</span>
         <button onClick={() => setExpanded(false)} className="cursor-pointer text-[9px]" style={{ color: "var(--color-text-muted)" }}>hide</button>
       </div>
-      <MixSlider label="Voice" icon={<Mic size={12} style={{ color: "var(--color-primary)" }} />} value={voice} onChange={(v) => { setVoice(v); sendThrottled(v, music); }} />
-      <MixSlider label="Music" icon={<Music size={12} style={{ color: "var(--color-accent)" }} />} value={music} onChange={(v) => { setMusic(v); sendThrottled(voice, v); }} />
+      <div onPointerUp={handleRelease} onKeyUp={(e) => { if (["ArrowLeft","ArrowRight","ArrowUp","ArrowDown"].includes(e.key)) handleRelease(); }}>
+        <MixSlider label="Voice" icon={<Mic size={12} style={{ color: "var(--color-primary)" }} />} value={voice} onChange={(v) => { setVoice(v); sendThrottled(v, music); }} />
+        <MixSlider label="Music" icon={<Music size={12} style={{ color: "var(--color-accent)" }} />} value={music} onChange={(v) => { setMusic(v); sendThrottled(voice, v); }} />
+      </div>
     </div>
   );
 }

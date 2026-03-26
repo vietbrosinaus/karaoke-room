@@ -29,7 +29,7 @@ interface UseRoomStateReturn {
   isMyTurn: boolean;
   send: (msg: ClientMessage) => void;
   sendChat: (text: string) => void;
-  sendStatusUpdate: (status: { isMuted: boolean; isSharingAudio: boolean; currentSong: string | null; browser?: string; lkIdentity?: string }) => void;
+  sendStatusUpdate: (status: { isMuted: boolean; isSharingAudio: boolean; currentSong: string | null; browser?: string; lkIdentity?: string; autoMix?: boolean }) => void;
   sendReaction: (emoji: string) => void;
   sendMuteAll: () => void;
   sendUnmuteAll: () => void;
@@ -204,7 +204,7 @@ export function useRoomState({
     }
   }, [send]);
 
-  const sendStatusUpdate = useCallback((status: { isMuted: boolean; isSharingAudio: boolean; currentSong: string | null; browser?: string; lkIdentity?: string }) => {
+  const sendStatusUpdate = useCallback((status: { isMuted: boolean; isSharingAudio: boolean; currentSong: string | null; browser?: string; lkIdentity?: string; autoMix?: boolean }) => {
     send({
       type: "status-update",
       isMuted: status.isMuted,
@@ -212,6 +212,7 @@ export function useRoomState({
       currentSong: status.currentSong,
       browser: status.browser,
       lkIdentity: status.lkIdentity,
+      autoMix: status.autoMix,
     });
   }, [send]);
 
