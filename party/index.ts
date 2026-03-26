@@ -231,11 +231,14 @@ export default class KaraokeRoom implements Party.Server {
     if (isDuplicate) {
       const suggestions: string[] = [];
       for (let i = 2; i <= 10; i++) {
-        const candidate = `${trimmedName}${i}`.slice(0, MAX_NAME_LENGTH);
+        const suffix = String(i);
+        // Truncate base name to make room for suffix within MAX_NAME_LENGTH
+        const base = trimmedName.slice(0, MAX_NAME_LENGTH - suffix.length);
+        const candidate = `${base}${suffix}`;
         const taken = Array.from(this.participants.values()).some(
           (p) => p.name.toLowerCase() === candidate.toLowerCase()
         );
-        if (!taken) suggestions.push(candidate);
+        if (!taken && candidate.toLowerCase() !== trimmedName.toLowerCase()) suggestions.push(candidate);
         if (suggestions.length >= 3) break;
       }
       this.send(sender, { type: "name-taken", name: trimmedName, suggestions });
