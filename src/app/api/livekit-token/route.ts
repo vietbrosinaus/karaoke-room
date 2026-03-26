@@ -130,6 +130,7 @@ export async function GET(req: NextRequest) {
         const at = new AccessToken(keySet.apiKey, keySet.apiSecret, {
           identity: uniqueId,
           name: name,
+          ttl: 3600, // 1 hour (default is 6h)
         });
 
         at.addGrant({
