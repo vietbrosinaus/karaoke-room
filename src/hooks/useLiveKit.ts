@@ -279,11 +279,11 @@ export function useLiveKit({
           `/api/livekit-token?room=${encodeURIComponent(roomCode)}&name=${encodeURIComponent(playerNameRef.current)}${keyHint}`,
         );
         if (!res.ok) {
+          const body = await res.json().catch(() => null) as { error?: string; reason?: string } | null;
           if (res.status === 429) {
-            throw new Error("This room has hit its session limit. Ask people in the room to create a new one, or create your own.");
+            throw new Error(body?.error ?? "This room has hit its session limit. Ask people in the room to create a new one, or create your own.");
           }
-          const text = await res.text();
-          throw new Error(`Token error: ${res.status} ${text}`);
+          throw new Error(body?.error ?? "Failed to get token. Please try again.");
         }
         const data = (await res.json()) as { token: string; url?: string; keySet?: number };
         if (cancelled) return;

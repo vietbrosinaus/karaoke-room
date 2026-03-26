@@ -61,7 +61,7 @@ export async function GET(req: NextRequest) {
       const msg = result.error === "all-exhausted"
         ? "All sessions are at capacity right now. Please try again in a few minutes."
         : "This room has hit its session limit. Ask people in the room to create a new one, or create your own.";
-      return NextResponse.json({ error: msg }, { status: 429 });
+      return NextResponse.json({ error: msg, reason: result.error }, { status: 429 });
     }
 
     const { keySet, index } = result;
