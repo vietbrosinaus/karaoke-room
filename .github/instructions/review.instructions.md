@@ -43,6 +43,25 @@ The singer's audio pipeline (`startSharing` → `AudioContext` → `publishTrack
 ## Style
 
 - Lucide icons for all UI elements (no emoji in UI, emoji only in chat/reactions)
-- CSS variables for all colors (`var(--color-primary)`, etc.)
+- CSS variables for all colors (`var(--color-primary)`, etc.) - no hardcoded hex colors
 - TypeScript strict mode with `noUncheckedIndexedAccess`
 - Path alias `~/` maps to `src/`
+- Named exports only (`export function X`) - no default exports
+- PascalCase for components, camelCase for hooks/utils
+- No em dashes in any text (comments, commits, strings)
+- Fonts referenced via CSS vars (`var(--font-display)`, `var(--font-body)`)
+
+## Component Patterns
+
+- Props interface defined above the component function, named `ComponentNameProps`
+- Modals: backdrop (fixed inset-0) + centered card (fixed left-1/2 top-1/2) + Escape key handler + click-outside dismiss
+- Error state in hooks: `error: string | null`, displayed as conditional banner
+- `useCallback` with `[]` deps + ref reads inside is intentional - don't flag missing deps when refs are used
+- `eslint-disable-next-line react-hooks/exhaustive-deps` comments are intentional - deps managed via refs
+
+## Cleanup Requirements
+
+- Every `new AudioContext()` must have `ctx.close()` in all cleanup paths
+- Every `getUserMedia()` must have `track.stop()` in all cleanup paths
+- Every `setInterval`/`setTimeout` must be cleared on component unmount
+- `mutedBySinger`, `autoMix`, recording state must reset when room empties
