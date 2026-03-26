@@ -277,9 +277,9 @@ export function WatchPlayer({ videoId, title, isLeader, watchSync, onSync, onAdv
               playerRef.current?.playVideo();
             }}
             className="absolute inset-0 flex cursor-pointer items-center justify-center rounded-xl"
-            style={{ background: "rgba(9, 9, 11, 0.55)" }}
+            style={{ background: "var(--color-dark-bg)" }}
           >
-            <div className="rounded-xl border px-4 py-3 text-center" style={{ borderColor: "var(--color-dark-border)", background: "rgba(9, 9, 11, 0.75)" }}>
+            <div className="rounded-xl border px-4 py-3 text-center" style={{ borderColor: "var(--color-dark-border)", background: "var(--color-dark-card)" }}>
               <p className="text-sm font-semibold" style={{ fontFamily: "var(--font-display)", color: "var(--color-text-primary)" }}>
                 Tap to play
               </p>
@@ -295,10 +295,10 @@ export function WatchPlayer({ videoId, title, isLeader, watchSync, onSync, onAdv
             className="absolute inset-0 flex items-center justify-center rounded-xl border"
             style={{
               borderColor: "var(--color-dark-border)",
-              background: "rgba(9, 9, 11, 0.55)",
+              background: "var(--color-dark-bg)",
             }}
           >
-            <div className="max-w-sm rounded-xl border px-4 py-3 text-center" style={{ borderColor: "var(--color-dark-border)", background: "rgba(9, 9, 11, 0.75)" }}>
+            <div className="max-w-sm rounded-xl border px-4 py-3 text-center" style={{ borderColor: "var(--color-dark-border)", background: "var(--color-dark-card)" }}>
               <p className="text-sm font-semibold" style={{ fontFamily: "var(--font-display)", color: "var(--color-text-primary)" }}>
                 Paste a YouTube URL to start watching together
               </p>

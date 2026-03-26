@@ -35,7 +35,7 @@ export function VideoQueue({ myPeerId, current, queue, onRemove }: VideoQueuePro
           <div className="relative">
             <img src={thumb(current.videoId)} alt={current.title ?? "YouTube video thumbnail"} className="h-24 w-full object-cover opacity-90" />
             <div className="absolute left-2 top-2 rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em]"
-              style={{ borderColor: "var(--color-dark-border)", background: "rgba(9, 9, 11, 0.65)", color: "var(--color-accent)" }}
+              style={{ borderColor: "var(--color-dark-border)", background: "var(--color-dark-bg)", color: "var(--color-accent)" }}
             >
               Now playing
             </div>
