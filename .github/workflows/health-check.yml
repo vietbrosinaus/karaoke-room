@@ -21,12 +21,15 @@ jobs:
 
       - name: Check PartyKit
         run: |
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://karaoke-room.elvistranhere.partykit.dev/parties/main/health)
-          if [ "$STATUS" -eq 000 ]; then
+          # Hit the onRequest handler on a test room - returns JSON with status: "ok"
+          RESPONSE=$(curl -s -w "\n%{http_code}" https://karaoke-room.elvistranhere.partykit.dev/parties/main/healthcheck)
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -1)
+          if [ "$HTTP_CODE" -eq 000 ]; then
             echo "::error::PartyKit is unreachable"
             exit 1
           fi
-          echo "PartyKit: OK ($STATUS)"
+          echo "PartyKit: OK ($HTTP_CODE) - $BODY"
 
       - name: Check Upstash Redis
         env:
