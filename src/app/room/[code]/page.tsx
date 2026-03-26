@@ -3,23 +3,15 @@
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { Suspense, useState, useEffect } from "react";
 import dynamic from "next/dynamic";
-import { getSavedName, saveName } from "~/lib/playerName";
+import { getSavedName, saveName, sanitizeName } from "~/lib/playerName";
 
-// Dynamic import — code-splits LiveKit (~400KB) away from landing page bundle
 const RoomView = dynamic(
   () => import("~/components/room/RoomView").then((m) => m.RoomView),
   {
     ssr: false,
     loading: () => (
       <div className="flex h-dvh items-center justify-center">
-        <div
-          className="text-lg"
-          style={{
-            fontFamily: "var(--font-display)",
-            color: "var(--color-primary)",
-            animation: "fade-in 0.5s ease-out",
-          }}
-        >
+        <div className="text-lg" style={{ fontFamily: "var(--font-display)", color: "var(--color-primary)", animation: "fade-in 0.5s ease-out" }}>
           Loading room...
         </div>
       </div>
@@ -33,23 +25,21 @@ function RoomContent() {
   const router = useRouter();
   const code = params.code?.toUpperCase() ?? "";
 
-  // Name priority: URL param (backward compat) > localStorage > "Anonymous"
+  // Name priority: URL param (backward compat) > localStorage > prompt modal
   const urlName = searchParams.get("name");
-  const [name, setName] = useState(() => {
-    if (urlName) return urlName;
-    return getSavedName() ?? "Anonymous";
-  });
+  const [name, setName] = useState(() => sanitizeName(urlName ?? getSavedName()));
   const [showNameModal, setShowNameModal] = useState(false);
 
   // If name came from URL param, save to localStorage and clean URL
   useEffect(() => {
-    if (urlName) {
-      saveName(urlName);
-      router.replace(`/room/${code}`);
-    }
+    if (!urlName || !code) return;
+    const clean = sanitizeName(urlName);
+    const persisted = saveName(clean);
+    // Only strip ?name= if we successfully saved (otherwise it's the only transport)
+    if (persisted) router.replace(`/room/${code}`);
   }, [urlName, code, router]);
 
-  // Show name modal if no saved name and no URL param
+  // Show name modal if no saved name and no URL param (new user via direct link)
   useEffect(() => {
     if (!urlName && !getSavedName()) {
       setShowNameModal(true);
@@ -65,25 +55,22 @@ function RoomContent() {
   }
 
   const handleRename = (newName: string) => {
-    setName(newName);
-    saveName(newName);
+    const clean = sanitizeName(newName);
+    setName(clean);
+    saveName(clean);
   };
 
   const handleNameSubmit = (newName: string) => {
-    const trimmed = newName.trim() || "Anonymous";
-    setName(trimmed);
-    saveName(trimmed);
+    const clean = sanitizeName(newName);
+    setName(clean);
+    saveName(clean);
     setShowNameModal(false);
   };
 
   return (
     <>
       <RoomView roomCode={code} playerName={name} onRename={handleRename} />
-
-      {/* Name splash modal — shown once for new users */}
-      {showNameModal && (
-        <NameModal onSubmit={handleNameSubmit} />
-      )}
+      {showNameModal && <NameModal onSubmit={handleNameSubmit} />}
     </>
   );
 }
@@ -91,16 +78,21 @@ function RoomContent() {
 function NameModal({ onSubmit }: { onSubmit: (name: string) => void }) {
   const [draft, setDraft] = useState("");
 
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onSubmit(""); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [onSubmit]);
+
   return (
     <>
-      <div className="fixed inset-0 z-[60]" style={{ background: "rgba(0,0,0,0.7)" }} />
+      <div className="fixed inset-0 z-[60]" style={{ background: "rgba(0,0,0,0.7)" }} onClick={() => onSubmit("")} />
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Enter your name"
         className="fixed left-1/2 top-1/2 z-[61] w-80 -translate-x-1/2 -translate-y-1/2 rounded-xl border p-6"
-        style={{
-          background: "var(--color-dark-bg)",
-          borderColor: "var(--color-dark-border)",
-          animation: "fade-in 0.2s ease-out",
-        }}
+        style={{ background: "var(--color-dark-bg)", borderColor: "var(--color-dark-border)", animation: "fade-in 0.2s ease-out" }}
       >
         <h2
           className="mb-1 text-sm font-bold"
@@ -111,7 +103,9 @@ function NameModal({ onSubmit }: { onSubmit: (name: string) => void }) {
         <p className="mb-4 text-xs" style={{ color: "var(--color-text-muted)" }}>
           Or skip to join as Anonymous.
         </p>
+        <label htmlFor="name-input" className="sr-only">Your name</label>
         <input
+          id="name-input"
           autoFocus
           type="text"
           value={draft}
@@ -147,14 +141,7 @@ export default function RoomPage() {
     <Suspense
       fallback={
         <div className="flex h-dvh items-center justify-center">
-          <div
-            className="text-lg"
-            style={{
-              fontFamily: "var(--font-display)",
-              color: "var(--color-primary)",
-              animation: "fade-in 0.5s ease-out",
-            }}
-          >
+          <div className="text-lg" style={{ fontFamily: "var(--font-display)", color: "var(--color-primary)", animation: "fade-in 0.5s ease-out" }}>
             Entering room...
           </div>
         </div>

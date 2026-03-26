@@ -28,16 +28,21 @@ export default function Home() {
 
   const handleCreate = () => {
     if (!name.trim()) { setError("Enter your name first"); return; }
-    saveName(name.trim());
-    router.push(`/room/${generateRoomCode()}`);
+    const trimmed = name.trim();
+    const persisted = saveName(trimmed);
+    // Fallback to URL param if localStorage is blocked (private browsing)
+    const param = persisted ? "" : `?name=${encodeURIComponent(trimmed)}`;
+    router.push(`/room/${generateRoomCode()}${param}`);
   };
 
   const handleJoin = () => {
     if (!name.trim()) { setError("Enter your name first"); return; }
     const code = joinCode.toUpperCase().trim();
     if (code.length !== CODE_LENGTH) { setError("Code must be 6 characters"); return; }
-    saveName(name.trim());
-    router.push(`/room/${code}`);
+    const trimmed = name.trim();
+    const persisted = saveName(trimmed);
+    const param = persisted ? "" : `?name=${encodeURIComponent(trimmed)}`;
+    router.push(`/room/${code}${param}`);
   };
 
   return (
