@@ -101,6 +101,49 @@ export function RoomView({ roomCode, playerName, onRename, onNameRejected }: Roo
     defaultPx: 288,
   });
 
+  const [stageHeight, setStageHeight] = useState<number>(() => {
+    if (typeof window === "undefined") return 420;
+    const raw = window.localStorage.getItem("karaok.stage.height");
+    const n = raw ? Number(raw) : NaN;
+    if (!Number.isFinite(n)) return 420;
+    return Math.max(260, Math.min(680, n));
+  });
+
+  const [isDesktop, setIsDesktop] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const update = () => setIsDesktop(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("karaok.stage.height", String(stageHeight));
+    } catch {
+      // ignore
+    }
+  }, [stageHeight]);
+
+  const stageDragRef = useRef<{ startY: number; startH: number } | null>(null);
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      const drag = stageDragRef.current;
+      if (!drag) return;
+      const dy = e.clientY - drag.startY;
+      const next = drag.startH + dy;
+      setStageHeight(Math.max(260, Math.min(680, next)));
+    };
+    const onUp = () => { stageDragRef.current = null; };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, []);
+
   const {
     room,
     isConnected: isLiveKitConnected,
@@ -490,8 +533,7 @@ export function RoomView({ roomCode, playerName, onRename, onNameRejected }: Roo
 
       {/* Main content */}
       <div
-        className="relative z-10 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2 pb-4 lg:grid lg:gap-4 lg:overflow-hidden lg:p-4"
-        style={paneSplit.gridStyle}
+        className="relative z-10 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2 pb-4 lg:flex-row lg:gap-4 lg:overflow-hidden lg:p-4"
       >
         {/* Mobile section switcher */}
         <div className="grid grid-cols-3 gap-1 rounded-lg border p-1 lg:hidden" style={{ borderColor: "var(--color-dark-border)", background: "var(--color-dark-surface)" }}>
@@ -516,8 +558,11 @@ export function RoomView({ roomCode, playerName, onRename, onNameRejected }: Roo
         </div>
 
         {/* Left: Stage + Toolbar + Chat */}
-        <div className={`min-h-0 flex-1 flex-col gap-2 lg:flex lg:gap-3 lg:overflow-auto ${mobileSection === "people" ? "hidden" : "flex"}`}>
-          <div className={`flex-col gap-2 lg:flex lg:gap-3 ${mobileSection === "stage" ? "flex" : "hidden"}`}>
+        <div className={`min-h-0 flex-1 flex-col gap-2 lg:flex lg:min-w-0 lg:gap-3 ${mobileSection === "people" ? "hidden" : "flex"}`}>
+          <div
+            className={`flex-col gap-2 lg:flex lg:gap-3 ${mobileSection === "stage" ? "flex" : "hidden"}`}
+          >
+            <div className="lg:overflow-auto" style={{ height: isDesktop ? stageHeight : undefined }}>
               {roomState.roomMode === "watch" ? (
                 <>
                   <WatchPlayer
@@ -597,6 +642,19 @@ export function RoomView({ roomCode, playerName, onRename, onNameRejected }: Roo
                   />
                 </>
               )}
+            </div>
+
+            {/* Desktop horizontal resizer between stage and chat */}
+            <div className="hidden lg:block">
+              <div
+                onMouseDown={(e) => { stageDragRef.current = { startY: e.clientY, startH: stageHeight }; e.preventDefault(); }}
+                className="group cursor-row-resize py-1"
+                title="Drag to resize stage and chat"
+              >
+                <div className="mx-auto h-[2px] w-full max-w-[680px] rounded-full transition-colors" style={{ background: "rgba(63, 63, 70, 0.55)" }} />
+                <div className="mx-auto -mt-[2px] h-[2px] w-full max-w-[680px] rounded-full opacity-0 transition-opacity group-hover:opacity-100" style={{ background: "rgba(212, 160, 23, 0.5)" }} />
+              </div>
+            </div>
           </div>
 
           {/* Chat - gets the most space */}
@@ -609,7 +667,7 @@ export function RoomView({ roomCode, playerName, onRename, onNameRejected }: Roo
           </div>
         </div>
 
-        {/* Desktop resizer */}
+        {/* Desktop vertical resizer between main and sidebar */}
         <div className="hidden lg:block">
           <div
             onMouseDown={paneSplit.onMouseDown}
@@ -617,21 +675,16 @@ export function RoomView({ roomCode, playerName, onRename, onNameRejected }: Roo
             title="Drag to resize sidebar"
             style={{ width: 10 }}
           >
-            <div
-              className="mx-auto h-full w-[2px] transition-colors"
-              style={{
-                background: "rgba(63, 63, 70, 0.6)",
-              }}
-            />
-            <div
-              className="pointer-events-none mx-auto -mt-full h-full w-[2px] opacity-0 transition-opacity group-hover:opacity-100"
-              style={{ background: "rgba(212, 160, 23, 0.5)" }}
-            />
+            <div className="mx-auto h-full w-[2px] transition-colors" style={{ background: "rgba(63, 63, 70, 0.6)" }} />
+            <div className="pointer-events-none mx-auto -mt-full h-full w-[2px] opacity-0 transition-opacity group-hover:opacity-100" style={{ background: "rgba(212, 160, 23, 0.5)" }} />
           </div>
         </div>
 
         {/* Right: People panel + Random Wheel */}
-        <div className={`w-full flex-col gap-3 pb-1 lg:flex lg:min-h-0 lg:overflow-auto lg:pb-0 ${mobileSection === "people" ? "flex" : "hidden"}`}>
+        <div
+          className={`w-full flex-col gap-3 pb-1 lg:flex lg:min-h-0 lg:overflow-auto lg:pb-0 ${mobileSection === "people" ? "flex" : "hidden"}`}
+          style={{ width: paneSplit.rightPx }}
+        >
           {roomState.roomMode === "watch" ? (
             <VideoQueue
               myPeerId={myPeerId}

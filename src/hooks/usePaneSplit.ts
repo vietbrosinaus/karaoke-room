@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 interface UsePaneSplitParams {
   storageKey: string;
@@ -53,15 +53,9 @@ export function usePaneSplit({ storageKey, minPx, maxPx, defaultPx }: UsePaneSpl
     };
   }, [minPx, maxPx]);
 
-  const gridStyle = useMemo(() => ({
-    // left grows, right fixed
-    gridTemplateColumns: `minmax(520px, 1fr) 10px ${rightPx}px`,
-  }), [rightPx]);
-
   return {
     rightPx,
     setRightPx,
-    gridStyle,
     onMouseDown,
   };
 }
