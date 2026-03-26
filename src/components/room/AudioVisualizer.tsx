@@ -95,16 +95,24 @@ export function AudioVisualizer({ room, isActive, children, ambientId }: AudioVi
     vizAnalyserRef.current = null;
     lastTrackIdRef.current = null;
     dataBufferRef.current = null;
+    if (vizCtxRef.current && vizCtxRef.current.state !== "closed") {
+      void vizCtxRef.current.close().catch(() => {});
+    }
+    vizCtxRef.current = null;
   };
 
   useEffect(() => {
     if (!isActive || !room) {
       cancelAnimationFrame(rafRef.current);
       cleanupViz();
-      // Reset glow
+      // Reset glow + ambient background
       if (wrapperRef.current) {
         wrapperRef.current.style.boxShadow = "";
         wrapperRef.current.style.borderColor = "";
+      }
+      if (ambientId) {
+        const ambientEl = document.getElementById(ambientId);
+        if (ambientEl) ambientEl.style.background = "";
       }
       return;
     }
@@ -172,8 +180,12 @@ export function AudioVisualizer({ room, isActive, children, ambientId }: AudioVi
         wrapperRef.current.style.boxShadow = "";
         wrapperRef.current.style.borderColor = "";
       }
+      if (ambientId) {
+        const ambientEl = document.getElementById(ambientId);
+        if (ambientEl) ambientEl.style.background = "";
+      }
     };
-  }, [isActive, room]);
+  }, [isActive, room, ambientId]);
 
   return (
     <div

@@ -221,15 +221,15 @@ export function RoomView({ roomCode, playerName, onRename }: RoomViewProps) {
   const lkIdentity = room?.localParticipant?.identity ?? null;
 
   // Listen for manual song name from singer — ref-stable to avoid re-registration
-  const statusCtxRef = useRef({ isMicEnabled, isSharing, browser, sendStatusUpdate, lkIdentity });
-  statusCtxRef.current = { isMicEnabled, isSharing, browser, sendStatusUpdate, lkIdentity };
+  const statusCtxRef = useRef({ isMicEnabled, isSharing, browser, sendStatusUpdate, lkIdentity, autoMix });
+  statusCtxRef.current = { isMicEnabled, isSharing, browser, sendStatusUpdate, lkIdentity, autoMix };
 
   useEffect(() => {
     const handler = (e: Event) => {
       const name = (e as CustomEvent<string>).detail;
       if (!name) return;
-      const { isMicEnabled: mic, isSharing: share, browser: b, sendStatusUpdate: send, lkIdentity: lkId } = statusCtxRef.current;
-      send({ isMuted: !mic, isSharingAudio: share, currentSong: name, browser: b.name + (b.isMobile ? " (Mobile)" : ""), lkIdentity: lkId ?? undefined });
+      const { isMicEnabled: mic, isSharing: share, browser: b, sendStatusUpdate: send, lkIdentity: lkId, autoMix: am } = statusCtxRef.current;
+      send({ isMuted: !mic, isSharingAudio: share, currentSong: name, browser: b.name + (b.isMobile ? " (Mobile)" : ""), lkIdentity: lkId ?? undefined, autoMix: am });
     };
     window.addEventListener("karaoke-set-song", handler);
     return () => window.removeEventListener("karaoke-set-song", handler);

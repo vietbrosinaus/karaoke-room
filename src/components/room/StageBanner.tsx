@@ -418,7 +418,7 @@ function ListenerMixControl({ voiceValue, musicValue, onAdjust, onDone }: { voic
         <span className="text-[9px] uppercase tracking-wider" style={{ color: "var(--color-text-muted)" }}>Adjust for everyone</span>
         <button onClick={() => setExpanded(false)} className="cursor-pointer text-[9px]" style={{ color: "var(--color-text-muted)" }}>hide</button>
       </div>
-      <div onPointerUp={handleRelease} onTouchEnd={handleRelease}>
+      <div onPointerUp={handleRelease}>
         <MixSlider label="Voice" icon={<Mic size={12} style={{ color: "var(--color-primary)" }} />} value={voice} onChange={(v) => { setVoice(v); sendThrottled(v, music); }} />
         <MixSlider label="Music" icon={<Music size={12} style={{ color: "var(--color-accent)" }} />} value={music} onChange={(v) => { setMusic(v); sendThrottled(voice, v); }} />
       </div>
