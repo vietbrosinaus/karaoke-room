@@ -348,6 +348,7 @@ export function useLiveKit({
       // Abort any in-progress mic check and restore remote audio
       micCheckAbortRef.current?.();
       micCheckAbortRef.current = null;
+      if (micErrorTimerRef.current) { clearTimeout(micErrorTimerRef.current); micErrorTimerRef.current = null; }
       document.querySelectorAll<HTMLAudioElement>('audio[id^="lk-audio-"]').forEach((el) => {
         const saved = el.dataset.savedVolume;
         if (saved !== undefined) { el.volume = parseFloat(saved); delete el.dataset.savedVolume; }
