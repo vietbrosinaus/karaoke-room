@@ -143,6 +143,7 @@ export function useLiveKit({
   const recorderRef = useRef<MediaRecorder | null>(null);
   const recordingChunksRef = useRef<Blob[]>([]);
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const tokenRefreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const recordingStartRef = useRef<number>(0);
 
   // --- Connect to LiveKit room ---
@@ -308,6 +309,22 @@ export function useLiveKit({
         setError(null);
         updateCount();
 
+        // Token refresh: re-fetch token every 30min to keep the LiveKit session alive
+        // past the 1hr token TTL, and refresh the Redis room mapping TTL (prevents
+        // ghost mapping expiry for long-running rooms with no new joins).
+        if (tokenRefreshRef.current) clearInterval(tokenRefreshRef.current);
+        tokenRefreshRef.current = setInterval(async () => {
+          try {
+            const refreshRes = await fetch(
+              `/api/livekit-token?room=${encodeURIComponent(roomCode)}&name=${encodeURIComponent(playerNameRef.current)}`,
+            );
+            if (!refreshRes.ok) return;
+            // Token refreshed on server side (Redis TTL extended). No need to reconnect.
+          } catch {
+            // Silent - next interval will retry
+          }
+        }, 30 * 60 * 1000); // 30 minutes
+
         // Resume audio context so remote audio plays without needing mic toggle.
         // Browsers block autoplay — also retried via manual click/keydown listeners below.
         room.startAudio().catch((e) => {
@@ -390,6 +407,8 @@ export function useLiveKit({
       mixMicGainRef.current = null;
       mixSystemGainRef.current = null;
       mixDestRef.current = null;
+      // Stop token refresh timer
+      if (tokenRefreshRef.current) { clearInterval(tokenRefreshRef.current); tokenRefreshRef.current = null; }
       // Stop auto-mix timer + analyser (prevent orphaned setInterval)
       if (autoMixTimerRef.current) { clearInterval(autoMixTimerRef.current); autoMixTimerRef.current = null; }
       autoMixAnalyserRef.current?.disconnect();
