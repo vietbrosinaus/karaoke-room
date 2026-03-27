@@ -568,6 +568,7 @@ export function RoomView({ roomCode, playerName, onRename, onNameRejected }: Roo
                     mixVoiceValue={mixVoiceValue}
                     mixMusicValue={mixMusicValue}
                     ambientId="ambient-bg"
+                    ambientColor="violet"
                     onMuteAll={() => { sendMuteAll(); setSingerMutedAll(true); }}
                     onUnmuteAll={() => { sendUnmuteAll(); setSingerMutedAll(false); }}
                     isMutedAll={singerMutedAll}

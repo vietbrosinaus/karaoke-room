@@ -9,6 +9,7 @@ interface AudioVisualizerProps {
   isActive: boolean;
   children: React.ReactNode;
   ambientId?: string;
+  ambientColor?: "violet" | "amber";
 }
 
 // Per-instance state is now inside the component via refs (not module-level)
@@ -58,7 +59,7 @@ function getAudioEnergy(analyser: AnalyserNode | null, dataBuffer: Uint8Array | 
   return { bass, mid, high, overall };
 }
 
-export function AudioVisualizer({ room, isActive, children, ambientId }: AudioVisualizerProps) {
+export function AudioVisualizer({ room, isActive, children, ambientId, ambientColor = "violet" }: AudioVisualizerProps) {
   const rafRef = useRef<number>(0);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const trackCheckCounter = useRef(0);
@@ -140,30 +141,36 @@ export function AudioVisualizer({ room, isActive, children, ambientId }: AudioVi
       const el = wrapperRef.current;
       if (el) {
         const intensity = energy.overall;
-        const spread = Math.round(12 + intensity * 36);
-        const opacity = Math.min(intensity * 1.5, 0.85);
+        const spread = Math.round(18 + intensity * 50);
+        const opacity = Math.min(intensity * 2.0, 0.95);
 
-        const violetGlow = `0 0 ${spread}px rgba(139, 92, 246, ${opacity * Math.max(energy.bass, 0.3)})`;
-        const amberGlow = `0 0 ${Math.round(spread * 0.8)}px rgba(245, 158, 11, ${opacity * energy.high * 2.5})`;
-        const innerGlow = `inset 0 0 ${Math.round(spread * 0.5)}px rgba(139, 92, 246, ${opacity * 0.4})`;
+        const violetGlow = `0 0 ${spread}px rgba(139, 92, 246, ${opacity * Math.max(energy.bass, 0.4)})`;
+        const amberGlow = `0 0 ${Math.round(spread * 0.8)}px rgba(245, 158, 11, ${opacity * energy.high * 3})`;
+        const innerGlow = `inset 0 0 ${Math.round(spread * 0.6)}px rgba(139, 92, 246, ${opacity * 0.5})`;
 
         el.style.boxShadow = `${violetGlow}, ${amberGlow}, ${innerGlow}`;
-        el.style.borderColor = intensity > 0.15
-          ? `rgba(139, 92, 246, ${0.4 + intensity * 0.6})`
+        el.style.borderColor = intensity > 0.08
+          ? `rgba(139, 92, 246, ${0.5 + intensity * 0.5})`
           : "";
       }
 
       if (ambientId) {
         const ambientEl = document.getElementById(ambientId);
         if (ambientEl) {
-          const bassOpacity = 0.03 + energy.bass * 0.1;
-          const highOpacity = 0.02 + energy.high * 0.08;
-          const bassSize = 40 + energy.bass * 20;
-          const highSize = 35 + energy.high * 15;
+          const bassOpacity = 0.05 + energy.bass * 0.18;
+          const highOpacity = 0.03 + energy.high * 0.14;
+          const bassSize = 45 + energy.bass * 30;
+          const highSize = 38 + energy.high * 22;
 
+          const bassColor = ambientColor === "violet"
+            ? `rgba(139, 92, 246, ${bassOpacity})`
+            : `rgba(245, 158, 11, ${bassOpacity})`;
+          const highColor = ambientColor === "violet"
+            ? `rgba(245, 158, 11, ${highOpacity})`
+            : `rgba(139, 92, 246, ${highOpacity})`;
           ambientEl.style.background =
-            `radial-gradient(ellipse ${bassSize}% ${bassSize}% at 20% 80%, rgba(139, 92, 246, ${bassOpacity}), transparent), ` +
-            `radial-gradient(ellipse ${highSize}% ${highSize}% at 80% 20%, rgba(245, 158, 11, ${highOpacity}), transparent)`;
+            `radial-gradient(ellipse ${bassSize}% ${bassSize}% at 20% 80%, ${bassColor}, transparent), ` +
+            `radial-gradient(ellipse ${highSize}% ${highSize}% at 80% 20%, ${highColor}, transparent)`;
         }
       }
 
@@ -185,7 +192,7 @@ export function AudioVisualizer({ room, isActive, children, ambientId }: AudioVi
         if (ambientEl) ambientEl.style.background = "";
       }
     };
-  }, [isActive, room, ambientId]);
+  }, [isActive, room, ambientId, ambientColor]);
 
   return (
     <div

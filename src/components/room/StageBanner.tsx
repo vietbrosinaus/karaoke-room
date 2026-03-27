@@ -23,6 +23,7 @@ interface StageBannerProps {
   onMixMicGain?: (val: number) => void;
   onMixMusicGain?: (val: number) => void;
   ambientId?: string;
+  ambientColor?: "violet" | "amber";
   onMuteAll?: () => void;
   onUnmuteAll?: () => void;
   isMutedAll?: boolean;
@@ -58,6 +59,7 @@ export function StageBanner({
   onMixMicGain,
   onMixMusicGain,
   ambientId,
+  ambientColor,
   onMuteAll,
   onUnmuteAll,
   isMutedAll = false,
@@ -97,7 +99,7 @@ export function StageBanner({
   // Someone else singing — informational banner with volume
   if (!isMyTurn) {
     return (
-      <AudioVisualizer room={room} isActive={isSomeoneSinging} ambientId={ambientId}>
+      <AudioVisualizer room={room} isActive={isSomeoneSinging} ambientId={ambientId} ambientColor={ambientColor}>
       <div
         className="relative overflow-hidden rounded-xl px-4 py-3"
         style={{ background: "var(--color-dark-surface)" }}
@@ -147,7 +149,7 @@ export function StageBanner({
 
   // My turn — expanded with controls
   return (
-    <AudioVisualizer room={room} isActive={isSharing} ambientId={ambientId}>
+    <AudioVisualizer room={room} isActive={isSharing} ambientId={ambientId} ambientColor={ambientColor}>
     <div
       className="relative overflow-hidden rounded-xl p-4"
       style={{ background: "var(--color-dark-surface)" }}
