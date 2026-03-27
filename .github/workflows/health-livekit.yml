@@ -54,7 +54,7 @@ jobs:
           # Step 2: Generate a test JWT and validate against LiveKit (detects quota exhaustion)
           if [ -n "$LK_KEY" ] && [ -n "$LK_SEC" ]; then
             # Create a minimal JWT: header.payload.signature
-            HEADER=$(echo -n '{"alg":"HS256"}' | base64 -w0 | tr '+/' '-_' | tr -d '=')
+            HEADER=$(echo -n '{"alg":"HS256","typ":"JWT"}' | base64 -w0 | tr '+/' '-_' | tr -d '=')
             NOW=$(date +%s)
             EXP=$((NOW + 60))
             PAYLOAD=$(echo -n "{\"iss\":\"$LK_KEY\",\"exp\":$EXP,\"nbf\":0,\"sub\":\"health-check\",\"video\":{\"room\":\"HEALTHCHECK\",\"roomJoin\":true,\"roomCreate\":true}}" | base64 -w0 | tr '+/' '-_' | tr -d '=')
@@ -71,7 +71,13 @@ jobs:
               echo "status=down" >> "$GITHUB_OUTPUT"
               exit 1
             fi
-            echo "${{ matrix.name }}: Server OK ($STATUS), Token validated ($V_CODE)"
+            if [ "$V_CODE" -eq 400 ]; then
+              # 400 = JWT accepted but join request malformed (expected) OR JWT itself malformed.
+              # Either way, server is alive and key is not quota-blocked (quota returns 429).
+              echo "${{ matrix.name }}: Server OK ($STATUS), Key active (validate $V_CODE)"
+            else
+              echo "${{ matrix.name }}: Server OK ($STATUS), Validate response ($V_CODE)"
+            fi
           else
             echo "${{ matrix.name }}: Server OK ($STATUS) (no API key to validate quota)"
           fi
