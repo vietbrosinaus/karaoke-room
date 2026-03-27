@@ -13,8 +13,12 @@ jobs:
         include:
           - name: Primary
             secret_key: LIVEKIT_URL
+            api_key_secret: LIVEKIT_API_KEY
+            api_secret_secret: LIVEKIT_API_SECRET
           - name: Key 2
             secret_key: LIVEKIT_URL_2
+            api_key_secret: LIVEKIT_API_KEY_2
+            api_secret_secret: LIVEKIT_API_SECRET_2
           # Add more entries here when adding keys 3+
     steps:
       - name: Check LiveKit (${{ matrix.name }})
@@ -22,10 +26,14 @@ jobs:
         env:
           LK_URL_PRIMARY: ${{ secrets.LIVEKIT_URL }}
           LK_URL_2: ${{ secrets.LIVEKIT_URL_2 }}
+          LK_KEY_PRIMARY: ${{ secrets.LIVEKIT_API_KEY }}
+          LK_KEY_2: ${{ secrets.LIVEKIT_API_KEY_2 }}
+          LK_SECRET_PRIMARY: ${{ secrets.LIVEKIT_API_SECRET }}
+          LK_SECRET_2: ${{ secrets.LIVEKIT_API_SECRET_2 }}
         run: |
           case "${{ matrix.secret_key }}" in
-            LIVEKIT_URL)   LK_URL="$LK_URL_PRIMARY" ;;
-            LIVEKIT_URL_2) LK_URL="$LK_URL_2" ;;
+            LIVEKIT_URL)   LK_URL="$LK_URL_PRIMARY"; LK_KEY="$LK_KEY_PRIMARY"; LK_SEC="$LK_SECRET_PRIMARY" ;;
+            LIVEKIT_URL_2) LK_URL="$LK_URL_2"; LK_KEY="$LK_KEY_2"; LK_SEC="$LK_SECRET_2" ;;
           esac
 
           if [ -z "$LK_URL" ]; then
@@ -33,26 +41,42 @@ jobs:
             echo "status=skip" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+
+          # Step 1: Check server is reachable
           HTTP_URL=$(echo "$LK_URL" | sed 's|^wss://|https://|;s|^ws://|http://|')
-          # LiveKit returns 426 (Upgrade Required) when healthy - normal for WebSocket servers
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$HTTP_URL")
-          if [ "$STATUS" -eq 000 ]; then
-            echo "::error::${{ matrix.name }} is UNREACHABLE"
+          if [ "$STATUS" -eq 000 ] || [ "$STATUS" -ge 500 ]; then
+            echo "::error::${{ matrix.name }} is DOWN ($STATUS)"
             echo "status=down" >> "$GITHUB_OUTPUT"
             exit 1
           fi
-          if [ "$STATUS" -ge 500 ]; then
-            echo "::error::${{ matrix.name }} returned $STATUS"
-            echo "status=down" >> "$GITHUB_OUTPUT"
-            exit 1
+
+          # Step 2: Generate a test JWT and validate against LiveKit (detects quota exhaustion)
+          if [ -n "$LK_KEY" ] && [ -n "$LK_SEC" ]; then
+            # Create a minimal JWT: header.payload.signature
+            HEADER=$(echo -n '{"alg":"HS256"}' | base64 -w0 | tr '+/' '-_' | tr -d '=')
+            NOW=$(date +%s)
+            EXP=$((NOW + 60))
+            PAYLOAD=$(echo -n "{\"iss\":\"$LK_KEY\",\"exp\":$EXP,\"nbf\":0,\"sub\":\"health-check\",\"video\":{\"room\":\"HEALTHCHECK\",\"roomJoin\":true,\"roomCreate\":true}}" | base64 -w0 | tr '+/' '-_' | tr -d '=')
+            SIG=$(echo -n "$HEADER.$PAYLOAD" | openssl dgst -sha256 -hmac "$LK_SEC" -binary | base64 -w0 | tr '+/' '-_' | tr -d '=')
+            TOKEN="$HEADER.$PAYLOAD.$SIG"
+
+            VALIDATE_URL="$HTTP_URL/rtc/v1/validate?access_token=$TOKEN"
+            RESPONSE=$(curl -s -w "\n%{http_code}" "$VALIDATE_URL")
+            V_CODE=$(echo "$RESPONSE" | tail -1)
+            V_BODY=$(echo "$RESPONSE" | head -1)
+
+            if [ "$V_CODE" -eq 429 ]; then
+              echo "::error::${{ matrix.name }} QUOTA EXHAUSTED: $V_BODY"
+              echo "status=down" >> "$GITHUB_OUTPUT"
+              exit 1
+            fi
+            echo "${{ matrix.name }}: Server OK ($STATUS), Token validated ($V_CODE)"
+          else
+            echo "${{ matrix.name }}: Server OK ($STATUS) (no API key to validate quota)"
           fi
-          if [ "$STATUS" -eq 429 ]; then
-            echo "::warning::${{ matrix.name }} is rate-limited (429)"
-            echo "status=ratelimited" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
+
           echo "status=ok" >> "$GITHUB_OUTPUT"
-          echo "${{ matrix.name }}: OK ($STATUS)"
 
       - name: Write result artifact
         if: always()
@@ -118,9 +142,8 @@ jobs:
 
           echo "Badge: $MSG ($COLOR)"
 
-          # Update Gist with badge JSON (if GIST_TOKEN configured)
           if [ -z "$GIST_TOKEN" ]; then
-            echo "::warning::GIST_TOKEN not set - badge won't update. Create a Gist and add the token."
+            echo "::warning::GIST_TOKEN not set - badge won't update."
             exit 0
           fi
 

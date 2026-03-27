@@ -156,6 +156,12 @@ export async function getKeyForRoom(
         // Only set exhaustion if not already set (NX) to avoid resetting the TTL
         await r.set(`key:${currentKey}:exhausted`, "1", { ex: EXHAUSTED_TTL, nx: true });
       }
+      // Even if threshold not met, this room's key just failed - return exhausted
+      // immediately so the user gets 429 instead of looping with the same broken key.
+      // The threshold gates the global exhaustion marker (affects new rooms), but
+      // this room should not retry the same key.
+      await r.expire(roomKey, ROOM_KEY_TTL);
+      return { error: "room-exhausted" as const };
     }
 
     // Check existing room-to-key mapping (reuse the GET we already did)
