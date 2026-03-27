@@ -48,9 +48,11 @@ interface UseRoomStateReturn {
   sendWatchQueueAdd: (videoId: string, title: string) => void;
   sendWatchQueueRemove: (videoId: string) => void;
   sendWatchSync: (state: "playing" | "paused", time: number) => void;
+  sendWatchSpeed: (rate: number) => void;
   sendWatchSkip: () => void;
   sendWatchAdvance: () => void;
   watchSync: { state: "playing" | "paused"; time: number; from: string } | null;
+  watchSpeed: number | null;
 }
 
 const INITIAL_ROOM_STATE: RoomState = {
@@ -85,6 +87,7 @@ export function useRoomState({
   const [pendingMixAdjust, setPendingMixAdjust] = useState<{ fromName: string; voice: number; music: number } | null>(null);
   const [nameTaken, setNameTaken] = useState<{ name: string; suggestions: string[] } | null>(null);
   const [watchSync, setWatchSync] = useState<{ state: "playing" | "paused"; time: number; from: string } | null>(null);
+  const [watchSpeed, setWatchSpeed] = useState<number | null>(null);
   const lastWatchVideoIdRef = useRef<string | null>(null);
   const reactionIdRef = useRef(0);
   const hasSentJoinRef = useRef(false);
@@ -142,6 +145,9 @@ export function useRoomState({
       case "watch-sync":
         setWatchSync({ state: msg.state, time: msg.time, from: msg.from });
         setRoomState((prev) => ({ ...prev, watchState: msg.state, watchTime: msg.time }));
+        break;
+      case "watch-speed":
+        setWatchSpeed(msg.rate);
         break;
       case "participant-status":
         setParticipantStatus((prev) => ({
@@ -295,6 +301,10 @@ export function useRoomState({
     send({ type: "watch-sync", state, time });
   }, [send]);
 
+  const sendWatchSpeed = useCallback((rate: number) => {
+    send({ type: "watch-speed", rate });
+  }, [send]);
+
   const sendWatchSkip = useCallback(() => {
     send({ type: "watch-skip" });
   }, [send]);
@@ -341,8 +351,10 @@ export function useRoomState({
     sendWatchQueueAdd,
     sendWatchQueueRemove,
     sendWatchSync,
+    sendWatchSpeed,
     sendWatchSkip,
     sendWatchAdvance,
     watchSync,
+    watchSpeed,
   };
 }

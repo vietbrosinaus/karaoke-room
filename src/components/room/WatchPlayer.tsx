@@ -17,6 +17,8 @@ interface WatchPlayerProps {
   isLeader: boolean;
   watchSync: { state: "playing" | "paused"; time: number; from: string } | null;
   onSync: (state: "playing" | "paused", time: number) => void;
+  onSpeedChange?: (rate: number) => void;
+  watchSpeed?: number | null;
   onAdvance: () => void;
   onApi?: (api: WatchPlayerApi | null) => void;
 }
@@ -29,7 +31,7 @@ function isProbablyMobile() {
   return hasTouch && small;
 }
 
-export function WatchPlayer({ videoId, title, isLeader, watchSync, onSync, onAdvance, onApi }: WatchPlayerProps) {
+export function WatchPlayer({ videoId, title, isLeader, watchSync, onSync, onSpeedChange, watchSpeed, onAdvance, onApi }: WatchPlayerProps) {
   const reactId = useId();
   const containerId = `yt-${reactId.replace(/:/g, "")}`;
   const playerRef = useRef<YT.Player | null>(null);
@@ -150,6 +152,13 @@ export function WatchPlayer({ videoId, title, isLeader, watchSync, onSync, onAdv
       });
 
       playerRef.current = player;
+
+      // Listen for playback rate changes (any participant can change speed)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (player as any).addEventListener("onPlaybackRateChange", (rate: number) => {
+        if (isProcessingSyncRef.current) return;
+        if (onSpeedChange) onSpeedChange(rate);
+      });
     };
 
     void mount().catch(() => { /* YouTube API load failed - user can retry */ });
@@ -222,6 +231,19 @@ export function WatchPlayer({ videoId, title, isLeader, watchSync, onSync, onAdv
       }, 0);
     }
   }, [videoId, watchSync]);
+
+  // Apply incoming speed changes from any participant
+  useEffect(() => {
+    if (watchSpeed == null) return;
+    const p = playerRef.current;
+    if (!p) return;
+    isProcessingSyncRef.current = true;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (p as any).setPlaybackRate(watchSpeed);
+    } catch { /* ignore */ }
+    setTimeout(() => { isProcessingSyncRef.current = false; }, 0);
+  }, [watchSpeed]);
 
   const hasVideo = Boolean(videoId);
 

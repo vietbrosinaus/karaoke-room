@@ -194,6 +194,9 @@ export default class KaraokeRoom implements Party.Server {
       case "watch-sync":
         this.handleWatchSync(sender, msg.state, msg.time);
         break;
+      case "watch-speed":
+        this.handleWatchSpeed(sender, msg.rate);
+        break;
       case "watch-skip":
         this.handleWatchSkip(sender);
         break;
@@ -582,6 +585,16 @@ export default class KaraokeRoom implements Party.Server {
     this.broadcast(
       { type: "watch-sync", state: nextState, time: clampedTime, from: participant.name },
     );
+  }
+
+  private handleWatchSpeed(sender: Party.Connection, rate: number) {
+    const participant = this.participants.get(sender.id);
+    if (!participant) return;
+    if (this.roomMode !== "watch") return;
+    if (!Number.isFinite(rate) || rate < 0.25 || rate > 2) return;
+
+    this.broadcast({ type: "watch-speed", rate, from: participant.name });
+    this.handleChat(sender, `changed playback speed to ${rate}x`);
   }
 
   private handleWatchSkip(sender: Party.Connection) {

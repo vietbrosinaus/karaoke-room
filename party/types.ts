@@ -65,6 +65,7 @@ export type ClientMessage =
   | { type: "watch-queue-add"; videoId: string; title: string }
   | { type: "watch-queue-remove"; videoId: string }
   | { type: "watch-sync"; state: "playing" | "paused"; time: number }
+  | { type: "watch-speed"; rate: number }
   | { type: "watch-skip" }
   | { type: "watch-advance" }
   | { type: "pong" };
@@ -85,6 +86,7 @@ export type ServerMessage =
   | { type: "mix-adjust"; fromName: string; voice: number; music: number }
   | { type: "name-taken"; name: string; suggestions: string[] }
   | { type: "watch-sync"; state: "playing" | "paused"; time: number; from: string }
+  | { type: "watch-speed"; rate: number; from: string }
   | { type: "ping" };
 
 export type SignalPayload =

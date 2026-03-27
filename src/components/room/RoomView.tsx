@@ -72,9 +72,11 @@ export function RoomView({ roomCode, playerName, onRename, onNameRejected }: Roo
     sendWatchQueueAdd,
     sendWatchQueueRemove,
     sendWatchSync,
+    sendWatchSpeed,
     sendWatchSkip,
     sendWatchAdvance,
     watchSync,
+    watchSpeed,
   } = useRoomState({ roomCode, playerName });
 
 
@@ -530,9 +532,10 @@ export function RoomView({ roomCode, playerName, onRename, onNameRejected }: Roo
                     title={roomState.watchCurrentTitle}
                     isLeader={myPeerId !== null && roomState.watchLeaderId === myPeerId}
                     watchSync={watchSync}
+                    watchSpeed={watchSpeed}
                     onSync={sendWatchSync}
+                    onSpeedChange={sendWatchSpeed}
                     onAdvance={sendWatchAdvance}
-                    
                   />
                   <WatchToolbar
                     roomState={roomState}
