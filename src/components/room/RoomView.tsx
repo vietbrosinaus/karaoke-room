@@ -106,6 +106,7 @@ export function RoomView({ roomCode, playerName, onRename, onNameRejected }: Roo
     error: liveKitError,
     isMicEnabled,
     toggleMic,
+    setMicMuted,
     micCheckState,
     startTalkingMicCheck,
     startSingingMicCheck,
@@ -284,22 +285,20 @@ export function RoomView({ roomCode, playerName, onRename, onNameRejected }: Roo
   useEffect(() => {
     if (mutedBySinger && !wasMutedBySingerRef.current) {
       wasMutedBySingerRef.current = true;
-      // Read ground truth from LiveKit directly (not React state) to avoid race
-      const micIsOn = room?.localParticipant?.isMicrophoneEnabled ?? false;
-      micWasOnBeforeMuteRef.current = micIsOn;
-      if (micIsOn && room?.localParticipant) {
-        void room.localParticipant.setMicrophoneEnabled(false);
+      micWasOnBeforeMuteRef.current = isMicEnabled;
+      if (isMicEnabled) {
+        // Use setMicMuted which handles both sharing (Web Audio mix) and non-sharing paths
+        void setMicMuted(true);
       }
     }
     if (!mutedBySinger && wasMutedBySingerRef.current) {
       wasMutedBySingerRef.current = false;
-      // Only restore mic if it was on before the mute-all
-      if (micWasOnBeforeMuteRef.current && room?.localParticipant) {
-        void room.localParticipant.setMicrophoneEnabled(true);
+      if (micWasOnBeforeMuteRef.current) {
+        void setMicMuted(false);
       }
       micWasOnBeforeMuteRef.current = false;
     }
-  }, [mutedBySinger, room]);
+  }, [mutedBySinger, isMicEnabled, setMicMuted]);
 
   // Auto-switch to singing mode ONCE when becoming the singer
   const wasMyTurnRef = useRef(false);

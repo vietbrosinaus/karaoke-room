@@ -38,6 +38,7 @@ interface UseLiveKitReturn {
   error: string | null;
   isMicEnabled: boolean;
   toggleMic: () => Promise<void>;
+  setMicMuted: (muted: boolean) => Promise<void>;
   micCheckState: MicCheckState;
   startTalkingMicCheck: (noiseCancellation: boolean) => Promise<void>;
   startSingingMicCheck: (noiseCancellation: boolean) => Promise<void>;
@@ -967,6 +968,8 @@ export function useLiveKit({
           mixMicGainRef.current = null;
           mixMicStreamRef.current.getTracks().forEach((t) => t.stop());
           mixMicStreamRef.current = null; setMixMicStreamState(null);
+          // Auto-mix can't work without a mic source - disable it
+          if (autoMixRef.current) setAutoMix(false);
 
           console.log("[LiveKit] Mic removed from mix on the fly");
         }
@@ -1000,6 +1003,14 @@ export function useLiveKit({
       isTogglingMicRef.current = false;
     }
   }, [selectedInputDeviceId]);
+
+  // Force mute/unmute - used by mute-all to properly handle both sharing and non-sharing paths.
+  // Unlike toggleMic, this sets a specific state rather than toggling.
+  const setMicMuted = useCallback(async (muted: boolean) => {
+    const currentlyEnabled = isMicEnabledRef.current;
+    if ((muted && !currentlyEnabled) || (!muted && currentlyEnabled)) return; // already in desired state
+    await toggleMic();
+  }, [toggleMic]);
 
   // --- System audio sharing (single-track mixing) ---
   // Mixes system audio + mic into ONE track via Web Audio API.
@@ -1514,6 +1525,7 @@ export function useLiveKit({
     error,
     isMicEnabled,
     toggleMic,
+    setMicMuted,
     micCheckState,
     startTalkingMicCheck,
     startSingingMicCheck,
