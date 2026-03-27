@@ -471,6 +471,8 @@ export function useLiveKit({
               newSource.connect(gain);
             }
             mixMicSourceRef.current = newSource;
+            // Reconnect auto-mix analyser to new mic source if active
+            if (autoMixRef.current) connectAutoMixAnalyser();
             console.log("[LiveKit] Mix mic switched to new input device");
           }
         } catch (err) {
@@ -1227,6 +1229,12 @@ export function useLiveKit({
 
       // 2. Capture mic with singing NC setting (AudioContext mixing bypasses
       //    Chrome's system-level echo cancellation, Chromium bug #40226380)
+      // Auto-enable mic when starting to share so the singer can be heard
+      // and Auto Mix has a source. Singer can mute later if they want.
+      if (!isMicEnabledRef.current) {
+        isMicEnabledRef.current = true;
+        setIsMicEnabled(true);
+      }
       const singNC = singingNCRef.current;
       let micStream: MediaStream | null = null;
       if (isMicEnabledRef.current) {
