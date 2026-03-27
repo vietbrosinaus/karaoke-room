@@ -7,6 +7,8 @@ import { loadYouTubeIFrameAPI } from "~/lib/youtube";
 interface YTPlayerExtended extends YT.Player {
   setPlaybackRate(rate: number): void;
   getPlaybackRate(): number;
+  // YouTube addEventListener callbacks receive (data: number) per the type system,
+  // but actually get { target, data } event objects at runtime
   addEventListener(event: string, listener: (data: number) => void): void;
 }
 
@@ -161,10 +163,15 @@ export function WatchPlayer({ videoId, title, isLeader, watchSync, onSync, onSpe
       playerRef.current = player;
 
       // Listen for playback rate changes (any participant can change speed)
-      (player as YTPlayerExtended).addEventListener("onPlaybackRateChange", (rate: number) => {
+      // Note: addEventListener uses event names without "on" prefix (unlike the constructor events object)
+      // Callback receives { target, data } event object, not a bare number
+      (player as YTPlayerExtended).addEventListener("playbackRateChange", ((evt: unknown) => {
         if (isProcessingSyncRef.current) return;
-        if (onSpeedChange) onSpeedChange(rate);
-      });
+        const rate = typeof evt === "object" && evt !== null && "data" in evt
+          ? (evt as { data: number }).data
+          : (evt as number);
+        if (onSpeedChange && typeof rate === "number") onSpeedChange(rate);
+      }) as (data: number) => void);
     };
 
     void mount().catch(() => { /* YouTube API load failed - user can retry */ });

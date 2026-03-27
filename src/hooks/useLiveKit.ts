@@ -1151,7 +1151,7 @@ export function useLiveKit({
       // audio gain changes happen every 50ms for smooth sound regardless)
       if (++tickCounter % 12 === 0) {
         setAutoMixDuckedValue(Math.round(autoMixBaseGainRef.current * duckRatio * 100));
-        setAutoMixBoostedVoice(isSinging ? Math.round(autoMixBaseVoiceRef.current * boostRatio * 100) : null);
+        setAutoMixBoostedVoice(isSinging ? Math.round(Math.min(autoMixBaseVoiceRef.current * boostRatio, 1.3) * 100) : null);
       }
 
       // Smoother music restoration (0.3s) to avoid pumping between vocal phrases
