@@ -73,9 +73,9 @@ jobs:
             " 2>/dev/null)
 
             if [ "$V_CODE" = "429" ]; then
-              echo "::error::${{ matrix.name }} QUOTA EXHAUSTED"
-              echo "status=down" >> "$GITHUB_OUTPUT"
-              exit 1
+              echo "::warning::${{ matrix.name }} QUOTA EXHAUSTED"
+              echo "status=quota" >> "$GITHUB_OUTPUT"
+              exit 0
             fi
             echo "${{ matrix.name }}: Server OK ($STATUS), Quota check ($V_CODE)"
           else
@@ -114,6 +114,7 @@ jobs:
           GIST_ID: ${{ secrets.HEALTH_BADGE_GIST_ID }}
         run: |
           OK=0
+          QUOTA=0
           RATELIMITED=0
           DOWN=0
           TOTAL=0
@@ -122,12 +123,13 @@ jobs:
             STATUS=$(cat "$f")
             case "$STATUS" in
               ok) OK=$((OK+1)); TOTAL=$((TOTAL+1)) ;;
+              quota) QUOTA=$((QUOTA+1)); TOTAL=$((TOTAL+1)) ;;
               ratelimited) RATELIMITED=$((RATELIMITED+1)); TOTAL=$((TOTAL+1)) ;;
               down) DOWN=$((DOWN+1)); TOTAL=$((TOTAL+1)) ;;
             esac
           done
 
-          echo "OK=$OK RATELIMITED=$RATELIMITED DOWN=$DOWN TOTAL=$TOTAL"
+          echo "OK=$OK QUOTA=$QUOTA RATELIMITED=$RATELIMITED DOWN=$DOWN TOTAL=$TOTAL"
 
           if [ "$DOWN" -eq "$TOTAL" ] && [ "$TOTAL" -gt 0 ]; then
             COLOR="red"
@@ -135,8 +137,14 @@ jobs:
           elif [ "$DOWN" -gt 0 ]; then
             COLOR="red"
             MSG="${DOWN}/${TOTAL} down"
-          elif [ "$RATELIMITED" -eq "$TOTAL" ] && [ "$TOTAL" -gt 0 ]; then
+          elif [ "$QUOTA" -eq "$TOTAL" ] && [ "$TOTAL" -gt 0 ]; then
             COLOR="orange"
+            MSG="all quota exhausted"
+          elif [ "$QUOTA" -gt 0 ]; then
+            COLOR="orange"
+            MSG="${QUOTA}/${TOTAL} quota exhausted"
+          elif [ "$RATELIMITED" -eq "$TOTAL" ] && [ "$TOTAL" -gt 0 ]; then
+            COLOR="yellow"
             MSG="all rate-limited"
           elif [ "$RATELIMITED" -gt 0 ]; then
             COLOR="yellow"
