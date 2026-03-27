@@ -233,8 +233,8 @@ export function StageBanner({
           {/* Separate mic/music volume sliders + auto-mix */}
           {onMixMicGain && onMixMusicGain && (
             <div className="space-y-2">
-              <MixSlider label="Voice" icon={<Mic size={14} style={{ color: "var(--color-primary)" }} />} value={mixVoiceValue} onChange={(v) => onMixMicGain(v / 100)} />
-              <MixSlider label="Music" icon={<Music size={14} style={{ color: "var(--color-accent)" }} />} value={mixMusicValue} onChange={(v) => onMixMusicGain(v / 100)} />
+              <MixSlider label="Voice" icon={<Mic size={14} style={{ color: "var(--color-primary)" }} />} value={mixVoiceValue} onChange={(v) => onMixMicGain(v / 100)} disabled={autoMix} />
+              <MixSlider label="Music" icon={<Music size={14} style={{ color: "var(--color-accent)" }} />} value={mixMusicValue} onChange={(v) => onMixMusicGain(v / 100)} disabled={autoMix} />
               {onAutoMixChange && (
                 <button
                   onClick={() => onAutoMixChange(!autoMix)}
@@ -323,12 +323,12 @@ function formatDuration(s: number) {
   return `${m}:${sec.toString().padStart(2, "0")}`;
 }
 
-function MixSlider({ label, icon, value, onChange }: { label: string; icon: React.ReactNode; value: number; onChange: (val: number) => void }) {
+function MixSlider({ label, icon, value, onChange, disabled }: { label: string; icon: React.ReactNode; value: number; onChange: (val: number) => void; disabled?: boolean }) {
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2" style={disabled ? { opacity: 0.5, pointerEvents: "none" } : undefined}>
       {icon}
       <span className="w-10 text-[10px] uppercase" style={{ color: "var(--color-text-muted)" }}>{label}</span>
-      <input type="range" min="0" max="150" value={value} onChange={(e) => onChange(Number(e.target.value))} className="volume-slider flex-1" />
+      <input type="range" min="0" max="150" value={value} onChange={(e) => onChange(Number(e.target.value))} className="volume-slider flex-1" disabled={disabled} />
       <span className="w-6 text-right text-[10px] tabular-nums" style={{ color: "var(--color-text-muted)" }}>{value}</span>
     </div>
   );

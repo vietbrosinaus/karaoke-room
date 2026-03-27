@@ -58,6 +58,7 @@ interface UseLiveKitReturn {
   mixMicStream: MediaStream | null;
   // Auto-mix (sidechain ducking)
   autoMix: boolean;
+  autoMixDuckedValue: number | null;
   setAutoMix: (on: boolean) => void;
   // Recording
   recordingState: RecordingState;
@@ -998,6 +999,7 @@ export function useLiveKit({
   // Measures RAW mic level (before effects) to avoid reverb tails keeping ducking active.
   // Reads music gain from the live GainNode (not a snapshot) so slider changes are respected.
   const [autoMix, setAutoMixState] = useState(false);
+  const [autoMixDuckedValue, setAutoMixDuckedValue] = useState<number | null>(null);
   const autoMixRef = useRef(false);
   const autoMixTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const autoMixAnalyserRef = useRef<AnalyserNode | null>(null);
@@ -1012,10 +1014,7 @@ export function useLiveKit({
     // Connect analyser to raw mic source (before effects) to avoid reverb tails
     const ctx = mixCtxRef.current;
     const micSource = mixMicSourceRef.current;
-    if (!ctx || !micSource) {
-      console.warn("[AutoMix] connectAnalyser: missing", { ctx: !!ctx, micSource: !!micSource });
-      return;
-    }
+    if (!ctx || !micSource) return;
 
     autoMixAnalyserRef.current?.disconnect();
     const analyser = ctx.createAnalyser();
@@ -1035,6 +1034,7 @@ export function useLiveKit({
       }
       autoMixAnalyserRef.current?.disconnect();
       autoMixAnalyserRef.current = null;
+      setAutoMixDuckedValue(null);
       // Restore music gain to slider value
       const musicGain = mixSystemGainRef.current;
       const ctx = mixCtxRef.current;
@@ -1046,26 +1046,19 @@ export function useLiveKit({
 
     const ctx = mixCtxRef.current;
     const musicGain = mixSystemGainRef.current;
-    if (!ctx || !musicGain) {
-      console.warn("[AutoMix] Cannot start: missing", { ctx: !!ctx, musicGain: !!musicGain });
-      return;
-    }
+    if (!ctx || !musicGain) return;
 
     // Snapshot current slider position as base
     autoMixBaseGainRef.current = musicGain.gain.value;
 
     connectAutoMixAnalyser();
-    if (!autoMixAnalyserRef.current) {
-      console.warn("[AutoMix] Cannot start: analyser failed to connect (no mic source?)");
-      return;
-    }
-    console.log("[AutoMix] Started, base gain:", autoMixBaseGainRef.current);
+    if (!autoMixAnalyserRef.current) return;
 
     const analyser = autoMixAnalyserRef.current;
     const dataArray = new Uint8Array(analyser.frequencyBinCount);
     let smoothedLevel = 0;
 
-    let logCounter = 0;
+    let tickCounter = 0;
     autoMixTimerRef.current = setInterval(() => {
       if (!autoMixRef.current) return;
       const currentAnalyser = autoMixAnalyserRef.current;
@@ -1092,9 +1085,9 @@ export function useLiveKit({
         ? Math.max(0.3, 1 - (smoothedLevel - voiceThreshold) * 3)
         : 1.0;
 
-      // Log every ~2s (40 ticks at 50ms)
-      if (++logCounter % 40 === 0) {
-        console.log("[AutoMix] level:", smoothedLevel.toFixed(3), "duck:", duckRatio.toFixed(2));
+      // Update visual slider position (throttled to ~10fps to avoid excessive re-renders)
+      if (++tickCounter % 5 === 0) {
+        setAutoMixDuckedValue(Math.round(autoMixBaseGainRef.current * duckRatio * 100));
       }
 
       currentMusicGain.gain.setTargetAtTime(
@@ -1476,6 +1469,7 @@ export function useLiveKit({
     setEffectWetDry,
     mixMicStream: mixMicStreamState,
     autoMix,
+    autoMixDuckedValue,
     setAutoMix,
     recordingState,
     recordingDuration,
