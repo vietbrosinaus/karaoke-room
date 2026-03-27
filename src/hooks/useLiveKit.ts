@@ -569,6 +569,7 @@ export function useLiveKit({
           const newSource = ctx.createMediaStreamSource(newStream);
           newSource.connect(chain.input);
           mixMicSourceRef.current = newSource;
+          if (autoMixRef.current) connectAutoMixAnalyser();
           console.log("[LiveKit] Mix mic re-captured with NC:", nc ? "ON" : "OFF");
         }
       } catch (err) {
@@ -1202,8 +1203,10 @@ export function useLiveKit({
     chain.output.connect(micGain);
     effectChainRef.current = chain;
 
+    // micSource.disconnect() above also disconnected the auto-mix analyser
+    if (autoMixRef.current) connectAutoMixAnalyser();
     console.log("[LiveKit] Voice effect switched to:", effect);
-  }, []);
+  }, [connectAutoMixAnalyser]);
 
   const setEffectWetDry = useCallback((wet: number) => {
     effectWetDryRef.current = wet;
