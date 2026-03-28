@@ -339,8 +339,18 @@ export function useLiveKit({
         console.error("[LiveKit] Error:", err);
         setError(msg);
 
-        // Don't retry on quota/exhaustion errors - these are terminal
-        if (reason === "room-exhausted" || reason === "all-exhausted") return;
+        // all-exhausted = every key is quota-hit, no point retrying
+        if (reason === "all-exhausted") return;
+
+        // room-exhausted = server deleted stale mapping and will reassign on next request.
+        // Retry once (no keyHint needed - server picks a fresh healthy key).
+        if (reason === "room-exhausted") {
+          if (attempt < 1) {
+            console.log("[LiveKit] Room reassigned to healthy key, retrying...");
+            setTimeout(() => { if (!cancelled) void connect(attempt + 1, false); }, 1000);
+          }
+          return;
+        }
 
         // On connect failure, retry with a different key set first, then exponential backoff
         if (attempt < 3) {

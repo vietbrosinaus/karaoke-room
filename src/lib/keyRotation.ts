@@ -16,9 +16,9 @@
  * A separate quota_hit marker (1hr TTL) allows single-report re-exhaustion for
  * keys that have recently been marked exhausted (handles the 5-min cooldown cycle).
  *
- * On forceNext: if the key is already exhausted (or has recent quota_hit), return
- * room-exhausted immediately. Otherwise, record the report and return a valid token
- * so network blips don't produce false positives.
+ * On forceNext: if the key is already exhausted (or has recent quota_hit), delete
+ * the room mapping and reassign to a healthy key. Otherwise, record the report and
+ * return a valid token so network blips don't produce false positives.
  *
  * See docs/IDEOLOGY.md for full architecture decisions.
  */
@@ -117,7 +117,7 @@ async function countRoomsPerKey(r: Redis, totalKeys: number): Promise<number[]> 
  * Get the key set for a room.
  * - Existing rooms: use stored mapping (room affinity)
  * - New rooms: least-loaded non-exhausted key, assigned with SET NX (atomic)
- * - Exhausted key + existing mapping: return error (429, never split)
+ * - Exhausted key + existing mapping: delete mapping and reassign to healthy key
  * - Redis down: fall back to deterministic hash function
  */
 export async function getKeyForRoom(
@@ -167,12 +167,15 @@ export async function getKeyForRoom(
       ]);
 
       if (isExhausted || hadQuotaHit) {
-        // Key is known-bad. Re-mark exhausted if not already, and return room-exhausted.
+        // Key is known-bad. Re-mark exhausted if not already.
         if (!isExhausted && hadQuotaHit) {
           await r.set(`key:${currentKey}:exhausted`, "1", { ex: EXHAUSTED_TTL, nx: true });
         }
-        await r.expire(roomKey, ROOM_KEY_TTL);
-        return { error: "room-exhausted" as const };
+        // Delete room mapping so we can reassign to a healthy key below.
+        // Existing users on the old key keep their connections alive; they'll
+        // migrate on the next token refresh (30-min interval).
+        await r.del(roomKey);
+        // Fall through to new-room assignment path
       }
 
       // C2 fix: key appears healthy (no exhaustion, no recent quota_hit).
@@ -181,24 +184,28 @@ export async function getKeyForRoom(
     }
 
     // Check existing room-to-key mapping (reuse the GET we already did)
-    if (currentKey !== null) {
-      if (!keySets[currentKey]) {
+    // Note: if forceNext deleted the mapping above, currentKey is stale - re-read.
+    const effectiveKey = await r.get<number>(roomKey);
+    if (effectiveKey !== null) {
+      if (!keySets[effectiveKey]) {
         console.error(
           "[KeyRotation] Redis mapping references missing key index",
-          { room, currentKey, configuredKeyCount: keySets.length },
+          { room, currentKey: effectiveKey, configuredKeyCount: keySets.length },
         );
-        await r.expire(roomKey, ROOM_KEY_TTL);
-        return null;
+        await r.del(roomKey);
+        // Fall through to new-room assignment
+      } else {
+        const exhausted = await r.exists(`key:${effectiveKey}:exhausted`);
+        if (!exhausted) {
+          // Key is healthy - use it (room affinity)
+          await r.expire(roomKey, ROOM_KEY_TTL);
+          return { keySet: keySets[effectiveKey]!, index: effectiveKey };
+        }
+        // Key is exhausted - delete mapping so we reassign to a healthy key.
+        // Existing connections survive; users migrate on next token refresh.
+        await r.del(roomKey);
+        // Fall through to new-room assignment
       }
-      const exhausted = await r.exists(`key:${currentKey}:exhausted`);
-      if (!exhausted) {
-        // Key is healthy - use it (room affinity)
-        await r.expire(roomKey, ROOM_KEY_TTL);
-        return { keySet: keySets[currentKey]!, index: currentKey };
-      }
-      // Key is exhausted with active mapping - refuse (don't split room)
-      await r.expire(roomKey, ROOM_KEY_TTL);
-      return { error: "room-exhausted" as const };
     }
 
     // No mapping - new room. Find least-loaded non-exhausted key.
