@@ -61,6 +61,13 @@ export async function validateYouTubeVideo(videoId: string): Promise<{ valid: bo
   }
 }
 
+/**
+ * Extract a playlist ID from a YouTube URL.
+ * Only returns a playlist ID for dedicated playlist URLs (/playlist?list=...).
+ * Watch URLs with &list= are treated as single videos (user intent is the video).
+ * Radio/mix playlists (RD prefix) are rejected - they're dynamically generated
+ * and can't be enumerated by the IFrame API.
+ */
 export function extractYouTubePlaylistId(input: string): string | null {
   const raw = (input ?? "").trim();
   if (!raw) return null;
@@ -75,11 +82,18 @@ export function extractYouTubePlaylistId(input: string): string | null {
   const host = url.hostname.replace(/^www\./, "");
   if (host !== "youtube.com" && host !== "m.youtube.com" && host !== "music.youtube.com") return null;
 
-  // /playlist?list=PLAYLIST_ID or /watch?v=...&list=PLAYLIST_ID
   const list = url.searchParams.get("list");
-  if (list && /^[a-zA-Z0-9_-]+$/.test(list)) return list;
+  if (!list || !/^[a-zA-Z0-9_-]{5,150}$/.test(list)) return null;
 
-  return null;
+  // Reject radio/mix playlists (RD prefix) - dynamically generated, can't enumerate
+  if (list.startsWith("RD")) return null;
+
+  // Only treat as playlist if it's a dedicated playlist URL (no ?v= video)
+  const hasVideo = Boolean(url.searchParams.get("v"));
+  const isPlaylistPage = url.pathname.startsWith("/playlist");
+  if (hasVideo && !isPlaylistPage) return null;
+
+  return list;
 }
 
 /**
@@ -115,7 +129,7 @@ export async function fetchPlaylistVideoIds(playlistId: string, max: number = 20
       resolve(ids);
     };
 
-    const timeoutId = setTimeout(() => cleanup([]), 10_000);
+    const timeoutId = setTimeout(() => cleanup([]), 15_000);
 
     const player = new YT.Player(playerId, {
       height: "1",
@@ -147,7 +161,7 @@ export async function fetchPlaylistVideoIds(playlistId: string, max: number = 20
                 });
               } catch { /* ignore */ }
             }
-            if (attempts > 20) {
+            if (attempts > 30) {
               clearInterval(poll);
               cleanup([]);
             }
@@ -161,22 +175,29 @@ export async function fetchPlaylistVideoIds(playlistId: string, max: number = 20
 
 /**
  * Fetch playlist items (videoId + title) with no API key.
- * Uses IFrame API for video IDs, then oEmbed for titles (parallel).
+ * Uses IFrame API for video IDs, then oEmbed for titles (batched in groups of 5).
  */
 export async function fetchPlaylistItems(playlistId: string, max: number = 20): Promise<{ videoId: string; title: string }[]> {
   const ids = await fetchPlaylistVideoIds(playlistId, max);
   if (ids.length === 0) return [];
 
-  // Fetch titles in parallel via oEmbed
-  const results = await Promise.all(
-    ids.map(async (videoId) => {
-      const { valid, title } = await validateYouTubeVideo(videoId);
-      if (!valid) return null;
-      return { videoId, title: title || "YouTube video" };
-    }),
-  );
+  // Batch oEmbed requests in groups of 5 to avoid rate limiting
+  const items: { videoId: string; title: string }[] = [];
+  for (let i = 0; i < ids.length; i += 5) {
+    const batch = ids.slice(i, i + 5);
+    const results = await Promise.all(
+      batch.map(async (videoId) => {
+        const { valid, title } = await validateYouTubeVideo(videoId);
+        if (!valid) return null;
+        return { videoId, title: title || "YouTube video" };
+      }),
+    );
+    for (const r of results) {
+      if (r) items.push(r);
+    }
+  }
 
-  return results.filter((r): r is { videoId: string; title: string } => r !== null);
+  return items;
 }
 
 export function loadYouTubeIFrameAPI(): Promise<void> {

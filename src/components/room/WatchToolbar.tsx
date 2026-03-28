@@ -33,6 +33,7 @@ export function WatchToolbar({ roomState, myPeerId, isMicEnabled, toggleMic, onS
   }, [roomState.roomMode, roomState.watchCurrentVideoId, roomState.watchState]);
 
   const submit = async () => {
+    if (isValidating) return;
     setError(null);
     const trimmed = url.trim();
     if (!trimmed) return;
