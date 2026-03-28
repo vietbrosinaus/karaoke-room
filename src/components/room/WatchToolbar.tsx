@@ -3,6 +3,17 @@
 import { useMemo, useState } from "react";
 import { Mic, MicOff, SkipForward, Link as LinkIcon, MessageSquare, X } from "lucide-react";
 import { extractYouTubeVideoId, extractYouTubePlaylistId, validateYouTubeVideo, fetchPlaylistItems } from "~/lib/youtube";
+
+/** Check if a URL has both ?v= (video) and &list= (playlist) */
+function extractListParam(input: string): string | null {
+  try {
+    const url = new URL(input.trim());
+    const list = url.searchParams.get("list");
+    return list && /^[a-zA-Z0-9_-]{5,150}$/.test(list) ? list : null;
+  } catch {
+    return null;
+  }
+}
 import type { RoomState } from "~/types/room";
 
 interface WatchToolbarProps {
@@ -19,6 +30,8 @@ export function WatchToolbar({ roomState, myPeerId, isMicEnabled, toggleMic, onS
   const [url, setUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isValidating, setIsValidating] = useState(false);
+  // When a URL has both a video and a playlist, prompt the user to choose
+  const [pendingChoice, setPendingChoice] = useState<{ videoId: string; listId: string } | null>(null);
 
   const canControl = roomState.roomMode === "watch" && roomState.watchCurrentVideoId !== null;
   const queueCount = roomState.watchQueue.length;
@@ -32,9 +45,53 @@ export function WatchToolbar({ roomState, myPeerId, isMicEnabled, toggleMic, onS
     return "Ready";
   }, [roomState.roomMode, roomState.watchCurrentVideoId, roomState.watchState]);
 
+  const addSingleVideo = async (videoId: string) => {
+    if (isValidating) return;
+    setIsValidating(true);
+    setError(null);
+    try {
+      const res = await validateYouTubeVideo(videoId);
+      if (!res.valid) {
+        setError("Video not found or unavailable");
+        return;
+      }
+      onQueueAdd(videoId, res.title || "YouTube video");
+      setUrl("");
+      setPendingChoice(null);
+    } finally {
+      setIsValidating(false);
+    }
+  };
+
+  const addPlaylist = async (listId: string) => {
+    if (isValidating) return;
+    const remaining = 20 - roomState.watchQueue.length;
+    if (remaining <= 0) {
+      setError("Queue is full (max 20)");
+      return;
+    }
+    setIsValidating(true);
+    setError(null);
+    try {
+      const items = await fetchPlaylistItems(listId, remaining);
+      if (!items.length) {
+        setError("Couldn't load playlist - it may be private or a radio mix");
+        return;
+      }
+      for (const item of items) {
+        onQueueAdd(item.videoId, item.title);
+      }
+      setUrl("");
+      setPendingChoice(null);
+    } finally {
+      setIsValidating(false);
+    }
+  };
+
   const submit = async () => {
     if (isValidating) return;
     setError(null);
+    setPendingChoice(null);
     const trimmed = url.trim();
     if (!trimmed) return;
 
@@ -44,45 +101,28 @@ export function WatchToolbar({ roomState, myPeerId, isMicEnabled, toggleMic, onS
       return;
     }
 
-    // Check if it's a playlist URL
+    // Dedicated playlist page (/playlist?list=...)
     const playlistId = extractYouTubePlaylistId(trimmed);
     if (playlistId) {
-      setIsValidating(true);
-      try {
-        const items = await fetchPlaylistItems(playlistId, remaining);
-        if (!items.length) {
-          setError("Playlist is empty or unavailable");
-          return;
-        }
-        for (const item of items) {
-          onQueueAdd(item.videoId, item.title);
-        }
-        setUrl("");
-      } finally {
-        setIsValidating(false);
-      }
+      await addPlaylist(playlistId);
+      return;
+    }
+
+    // Check if URL has both a video and a list param (e.g. watch?v=abc&list=PLxyz)
+    const videoId = extractYouTubeVideoId(trimmed);
+    const listId = extractListParam(trimmed);
+    if (videoId && listId) {
+      setPendingChoice({ videoId, listId });
       return;
     }
 
     // Single video
-    const videoId = extractYouTubeVideoId(trimmed);
     if (!videoId) {
       setError("Not a valid YouTube or playlist URL");
       return;
     }
 
-    setIsValidating(true);
-    try {
-      const res = await validateYouTubeVideo(videoId);
-      if (!res.valid) {
-        setError("Video not found or unavailable");
-        return;
-      }
-      onQueueAdd(videoId, res.title || "YouTube video");
-      setUrl("");
-    } finally {
-      setIsValidating(false);
-    }
+    await addSingleVideo(videoId);
   };
 
   return (
@@ -210,6 +250,45 @@ export function WatchToolbar({ roomState, myPeerId, isMicEnabled, toggleMic, onS
           </button>
         </div>
       </div>
+
+      {pendingChoice ? (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>This URL has a video and a playlist:</span>
+          <button
+            className="cursor-pointer rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+            style={{
+              fontFamily: "var(--font-display)",
+              borderColor: "rgb(var(--watch-glow-rgb) / 0.25)",
+              background: "rgb(var(--watch-glow-rgb) / 0.10)",
+              color: "var(--color-primary)",
+            }}
+            disabled={isValidating}
+            onClick={() => void addSingleVideo(pendingChoice.videoId)}
+          >
+            {isValidating ? "Loading..." : "Add Video"}
+          </button>
+          <button
+            className="cursor-pointer rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+            style={{
+              fontFamily: "var(--font-display)",
+              borderColor: "var(--color-accent)",
+              background: "var(--color-accent-dim)",
+              color: "var(--color-accent)",
+            }}
+            disabled={isValidating}
+            onClick={() => void addPlaylist(pendingChoice.listId)}
+          >
+            {isValidating ? "Loading..." : "Add Playlist"}
+          </button>
+          <button
+            className="cursor-pointer text-xs"
+            style={{ color: "var(--color-text-muted)" }}
+            onClick={() => setPendingChoice(null)}
+          >
+            Cancel
+          </button>
+        </div>
+      ) : null}
 
       {error ? (
         <div className="mt-2 text-xs" style={{ color: "var(--color-danger)" }}>

@@ -85,13 +85,11 @@ export function extractYouTubePlaylistId(input: string): string | null {
   const list = url.searchParams.get("list");
   if (!list || !/^[a-zA-Z0-9_-]{5,150}$/.test(list)) return null;
 
-  // Reject radio/mix playlists (RD prefix) - dynamically generated, can't enumerate
-  if (list.startsWith("RD")) return null;
-
-  // Only treat as playlist if it's a dedicated playlist URL (no ?v= video)
-  const hasVideo = Boolean(url.searchParams.get("v"));
+  // Only treat as playlist if it's a dedicated playlist page.
+  // Watch URLs with &list= are ambiguous - handled separately in WatchToolbar
+  // to let the user choose between single video and playlist.
   const isPlaylistPage = url.pathname.startsWith("/playlist");
-  if (hasVideo && !isPlaylistPage) return null;
+  if (!isPlaylistPage) return null;
 
   return list;
 }
