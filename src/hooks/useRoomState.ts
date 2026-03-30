@@ -71,6 +71,8 @@ const INITIAL_ROOM_STATE: RoomState = {
   watchLeaderId: null,
   watchState: null,
   watchTime: 0,
+  adminPeerId: null,
+  isLocked: false,
 };
 
 export function useRoomState({

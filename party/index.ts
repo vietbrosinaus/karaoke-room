@@ -24,6 +24,11 @@ export default class KaraokeRoom implements Party.Server {
   participantStatus: Map<string, ParticipantStatus> = new Map();
   mutedBySinger: string | null = null; // persisted so reconnecting clients get correct state
 
+  // Admin & password
+  adminPeerId: string | null = null;
+  passwordHash: string | null = null;
+  pendingAuth: Set<string> = new Set();
+
   // Watch mode state (YouTube watch party)
   roomMode: "karaoke" | "watch" = "karaoke";
   watchQueue: WatchQueueItem[] = [];
@@ -231,6 +236,17 @@ export default class KaraokeRoom implements Party.Server {
     this.participants.delete(peerId);
     this.participantStatus.delete(peerId);
     this.lastPong.delete(peerId);
+    this.pendingAuth.delete(peerId);
+
+    // If they were admin, auto-promote next participant
+    if (this.adminPeerId === peerId) {
+      this.adminPeerId = null;
+      for (const [id, entry] of this.participants) {
+        this.adminPeerId = id;
+        this.broadcastSystemChat(`${entry.name} is now the room admin`);
+        break;
+      }
+    }
 
     // If they were the watch leader, reassign
     if (this.watchLeaderId === peerId) {
@@ -255,6 +271,9 @@ export default class KaraokeRoom implements Party.Server {
       this.chatMessages = [];
       this.participantStatus.clear();
       this.lastPong.clear();
+      this.adminPeerId = null;
+      this.passwordHash = null;
+      this.pendingAuth.clear();
       this.roomMode = "karaoke";
       this.wipeWatchState();
       this.stopHeartbeat();
@@ -326,6 +345,10 @@ export default class KaraokeRoom implements Party.Server {
       existing.name = trimmedName;
     } else {
       this.participants.set(sender.id, { name: trimmedName, ws: sender });
+      // First joiner becomes admin
+      if (this.adminPeerId === null) {
+        this.adminPeerId = sender.id;
+      }
     }
 
     // Notify all OTHER connections about the new peer
@@ -806,6 +829,8 @@ export default class KaraokeRoom implements Party.Server {
       watchLeaderId: this.watchLeaderId,
       watchState: this.watchState,
       watchTime: this.watchTime,
+      adminPeerId: this.adminPeerId,
+      isLocked: this.passwordHash !== null,
     };
   }
 

@@ -45,6 +45,8 @@ export interface RoomState {
   watchLeaderId: string | null;
   watchState: "playing" | "paused" | null;
   watchTime: number;
+  adminPeerId: string | null;
+  isLocked: boolean;
 }
 
 // Client -> Server
@@ -68,6 +70,10 @@ export type ClientMessage =
   | { type: "watch-speed"; rate: number }
   | { type: "watch-skip" }
   | { type: "watch-advance" }
+  | { type: "kick"; peerId: string }
+  | { type: "set-password"; password: string | null }
+  | { type: "transfer-admin"; peerId: string }
+  | { type: "auth"; password: string }
   | { type: "pong" };
 
 // Server -> Client
@@ -87,6 +93,10 @@ export type ServerMessage =
   | { type: "name-taken"; name: string; suggestions: string[] }
   | { type: "watch-sync"; state: "playing" | "paused"; time: number; from: string }
   | { type: "watch-speed"; rate: number; from: string }
+  | { type: "kicked"; by: string }
+  | { type: "auth-required" }
+  | { type: "auth-failed" }
+  | { type: "admin-changed"; peerId: string; name: string }
   | { type: "ping" };
 
 export type SignalPayload =
