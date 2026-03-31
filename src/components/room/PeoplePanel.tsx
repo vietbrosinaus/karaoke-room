@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Mic, MicOff, Music, Globe } from "lucide-react";
+import { Mic, MicOff, Music, Globe, Crown, MoreVertical } from "lucide-react";
 import type { Participant, ParticipantStatus, RoomState } from "~/types/room";
 
 interface PeoplePanelProps {
@@ -15,6 +15,8 @@ interface PeoplePanelProps {
   activeSpeakers: Set<string>;
   personVolumes: Record<string, number>;
   onPersonVolumeChange: (identity: string, vol: number) => void;
+  onKick?: (peerId: string) => void;
+  onTransferAdmin?: (peerId: string) => void;
 }
 
 export function PeoplePanel({
@@ -28,11 +30,15 @@ export function PeoplePanel({
   activeSpeakers,
   personVolumes,
   onPersonVolumeChange,
+  onKick,
+  onTransferAdmin,
 }: PeoplePanelProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [tab, setTab] = useState<"people" | "queue">("people");
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [songIntent, setSongIntent] = useState("");
+  const [adminMenuId, setAdminMenuId] = useState<string | null>(null);
+  const isAdmin = myPeerId !== null && roomState.adminPeerId === myPeerId;
 
   const isInQueue = myPeerId ? roomState.queue.includes(myPeerId) : false;
   const isSinging = myPeerId !== null && roomState.currentSingerId === myPeerId;
@@ -187,6 +193,9 @@ export function PeoplePanel({
                 {/* Name + status */}
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
+                    {p.id === roomState.adminPeerId && (
+                      <Crown size={12} style={{ color: "var(--color-accent)", flexShrink: 0 }} />
+                    )}
                     <span
                       className="truncate text-sm"
                       style={{ color: isMe ? "var(--color-primary)" : "var(--color-text-primary)" }}
@@ -223,8 +232,42 @@ export function PeoplePanel({
                   {status?.isSharingAudio && (
                     <Music size={12} style={{ color: "var(--color-accent)" }} />
                   )}
+                  {isAdmin && !isMe && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setAdminMenuId(adminMenuId === p.id ? null : p.id); }}
+                      className="cursor-pointer rounded p-0.5 transition-all hover:bg-[var(--color-dark-card)]"
+                      style={{ color: "var(--color-text-muted)" }}
+                      title="Admin actions"
+                    >
+                      <MoreVertical size={14} />
+                    </button>
+                  )}
                 </div>
               </div>
+
+              {/* Admin actions menu */}
+              {adminMenuId === p.id && isAdmin && !isMe && (
+                <div
+                  className="ml-9 flex gap-1 rounded-lg px-2 py-1.5"
+                  style={{ background: "var(--color-dark-card)", animation: "fade-in 0.1s ease-out" }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <button
+                    onClick={() => { onKick?.(p.id); setAdminMenuId(null); }}
+                    className="cursor-pointer rounded px-2.5 py-1.5 text-[11px] font-medium transition-all hover:brightness-110"
+                    style={{ background: "var(--color-danger-dim)", color: "var(--color-danger)" }}
+                  >
+                    Kick
+                  </button>
+                  <button
+                    onClick={() => { onTransferAdmin?.(p.id); setAdminMenuId(null); }}
+                    className="cursor-pointer rounded px-2.5 py-1.5 text-[11px] font-medium transition-all hover:brightness-110"
+                    style={{ background: "var(--color-primary-dim)", color: "var(--color-primary)" }}
+                  >
+                    Make Admin
+                  </button>
+                </div>
+              )}
 
               {/* Per-person volume slider */}
               {isExpanded && (

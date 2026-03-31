@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Mic, Users, Music, ArrowRight } from "lucide-react";
+import { Mic, Users, Music, ArrowRight, Lock, Search } from "lucide-react";
 import { getSavedName, saveName, MAX_NAME_LENGTH } from "~/lib/playerName";
 
 const CHARSET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -19,6 +19,8 @@ export default function Home() {
   const [joinCode, setJoinCode] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState("");
+  const [passwordEnabled, setPasswordEnabled] = useState(false);
+  const [roomPassword, setRoomPassword] = useState("");
   const normalizedName = name.trim();
   const canProceedWithName = normalizedName.length > 0;
   const joinCodeClean = joinCode.toUpperCase().trim();
@@ -35,7 +37,11 @@ export default function Home() {
     const trimmed = normalizedName.slice(0, MAX_NAME_LENGTH);
     const persisted = saveName(trimmed);
     const param = persisted ? "" : `?name=${encodeURIComponent(trimmed)}`;
-    router.push(`/room/${generateRoomCode()}${param}`);
+    const code = generateRoomCode();
+    if (passwordEnabled && roomPassword.trim()) {
+      sessionStorage.setItem(`room-password-${code}`, roomPassword.trim());
+    }
+    router.push(`/room/${code}${param}`);
   };
 
   const handleJoin = () => {
@@ -127,7 +133,29 @@ export default function Home() {
           <ArrowRight size={14} />
         </button>
 
-        <p className="mb-3 text-center text-xs" style={{ color: "var(--color-text-muted)" }}>
+        {/* Password toggle */}
+        <label className="mb-1 flex cursor-pointer items-center gap-2">
+          <input
+            type="checkbox"
+            checked={passwordEnabled}
+            onChange={(e) => { setPasswordEnabled(e.target.checked); if (!e.target.checked) setRoomPassword(""); }}
+            className="accent-[var(--color-primary)]"
+          />
+          <Lock size={12} style={{ color: "var(--color-text-muted)" }} />
+          <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>Set room password</span>
+        </label>
+        {passwordEnabled && (
+          <input
+            type="password"
+            value={roomPassword}
+            onChange={(e) => setRoomPassword(e.target.value)}
+            placeholder="Room password"
+            className="mb-1 w-full rounded-lg border px-3 py-2.5 text-sm outline-none transition-all focus:border-[var(--color-primary)]"
+            style={{ background: "var(--color-dark-card)", borderColor: "var(--color-dark-border)", color: "var(--color-text-primary)" }}
+          />
+        )}
+
+        <p className="mb-3 mt-2 text-center text-xs" style={{ color: "var(--color-text-muted)" }}>
           or join with a 6-character room code
         </p>
 
@@ -154,8 +182,18 @@ export default function Home() {
         </div>
       </div>
 
+      {/* Browse link */}
+      <button
+        onClick={() => router.push("/browse")}
+        className="mt-6 flex items-center gap-1.5 text-sm transition-colors hover:brightness-125"
+        style={{ color: "var(--color-text-muted)", fontFamily: "var(--font-display)" }}
+      >
+        <Search size={14} />
+        Browse active rooms
+      </button>
+
       {/* Footer */}
-      <p className="mt-6 text-center text-[11px]" style={{ color: "var(--color-text-muted)" }}>
+      <p className="mt-4 text-center text-[11px]" style={{ color: "var(--color-text-muted)" }}>
         Works on all browsers. Singing requires Chromium (Chrome, Edge, Brave, Arc).
       </p>
     </main>

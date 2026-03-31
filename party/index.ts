@@ -24,6 +24,11 @@ export default class KaraokeRoom implements Party.Server {
   participantStatus: Map<string, ParticipantStatus> = new Map();
   mutedBySinger: string | null = null; // persisted so reconnecting clients get correct state
 
+  // Admin & password
+  adminPeerId: string | null = null;
+  passwordHash: string | null = null;
+  pendingAuth: Map<string, { name: string; ws: Party.Connection }> = new Map();
+
   // Watch mode state (YouTube watch party)
   roomMode: "karaoke" | "watch" = "karaoke";
   watchQueue: WatchQueueItem[] = [];
@@ -40,6 +45,9 @@ export default class KaraokeRoom implements Party.Server {
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   // Singer timeout: auto-advance if singer goes inactive
   private singerTimer: ReturnType<typeof setTimeout> | null = null;
+  // Registry reporting (debounced - max once per 30s)
+  private lastRegistryReport = 0;
+  private registryTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(readonly room: Party.Room) {}
 
@@ -203,13 +211,26 @@ export default class KaraokeRoom implements Party.Server {
       case "watch-advance":
         this.handleWatchAdvance(sender);
         break;
+      case "kick":
+        this.handleKick(sender, msg.peerId);
+        break;
+      case "set-password":
+        void this.handleSetPassword(sender, msg.password);
+        break;
+      case "transfer-admin":
+        this.handleTransferAdmin(sender, msg.peerId);
+        break;
+      case "auth":
+        void this.handleAuth(sender, msg.password);
+        break;
       default:
         this.send(sender, { type: "error", message: "Unknown message type" });
     }
   }
 
   onClose(conn: Party.Connection) {
-    // Clean up lastPong for pre-join connections that never called handleJoin
+    // Clean up pending auth and lastPong for pre-join connections
+    this.pendingAuth.delete(conn.id);
     if (!this.participants.has(conn.id)) {
       this.lastPong.delete(conn.id);
     }
@@ -218,6 +239,7 @@ export default class KaraokeRoom implements Party.Server {
 
   onError(conn: Party.Connection, _error: Error) {
     console.error(`[KaraokeRoom] Connection error for ${conn.id}`);
+    this.pendingAuth.delete(conn.id);
     if (!this.participants.has(conn.id)) {
       this.lastPong.delete(conn.id);
     }
@@ -231,6 +253,18 @@ export default class KaraokeRoom implements Party.Server {
     this.participants.delete(peerId);
     this.participantStatus.delete(peerId);
     this.lastPong.delete(peerId);
+    this.pendingAuth.delete(peerId);
+
+
+    // If they were admin, auto-promote next participant
+    if (this.adminPeerId === peerId) {
+      this.adminPeerId = null;
+      for (const [id, entry] of this.participants) {
+        this.adminPeerId = id;
+        this.broadcastSystemChat(`${entry.name} is now the room admin`);
+        break;
+      }
+    }
 
     // If they were the watch leader, reassign
     if (this.watchLeaderId === peerId) {
@@ -255,11 +289,17 @@ export default class KaraokeRoom implements Party.Server {
       this.chatMessages = [];
       this.participantStatus.clear();
       this.lastPong.clear();
+      this.adminPeerId = null;
+      this.passwordHash = null;
+      this.pendingAuth.clear();
       this.roomMode = "karaoke";
       this.wipeWatchState();
       this.stopHeartbeat();
       if (this.singerTimer) clearTimeout(this.singerTimer);
       this.singerTimer = null;
+      if (this.registryTimer) clearTimeout(this.registryTimer);
+      this.registryTimer = null;
+      this.deleteFromRegistry();
       return; // no one to broadcast to
     }
 
@@ -325,7 +365,17 @@ export default class KaraokeRoom implements Party.Server {
     if (existing) {
       existing.name = trimmedName;
     } else {
+      // If room has a password, require auth before adding (first joiner exempt - they're creating the room)
+      if (this.passwordHash !== null && this.participants.size > 0) {
+        this.pendingAuth.set(sender.id, { name: trimmedName, ws: sender });
+        this.send(sender, { type: "auth-required" });
+        return;
+      }
       this.participants.set(sender.id, { name: trimmedName, ws: sender });
+      // First joiner becomes admin
+      if (this.adminPeerId === null) {
+        this.adminPeerId = sender.id;
+      }
     }
 
     // Notify all OTHER connections about the new peer
@@ -755,6 +805,101 @@ export default class KaraokeRoom implements Party.Server {
     this.broadcastState();
   }
 
+  // ── Admin Handlers ──────────────────────────────────────────
+
+  private handleKick(sender: Party.Connection, targetPeerId: string) {
+    if (this.adminPeerId !== sender.id) {
+      this.send(sender, { type: "error", message: "Only the admin can kick" });
+      return;
+    }
+    const admin = this.participants.get(sender.id);
+    const target = this.participants.get(targetPeerId);
+    if (!admin || !target) return;
+    if (targetPeerId === sender.id) return; // can't kick yourself
+
+    const targetName = target.name;
+    this.send(target.ws, { type: "kicked", by: admin.name });
+    try { target.ws.close(); } catch { /* already closed */ }
+    this.removeParticipant(targetPeerId);
+    this.broadcastSystemChat(`${targetName} was kicked by ${admin.name}`);
+  }
+
+  private handleTransferAdmin(sender: Party.Connection, targetPeerId: string) {
+    if (this.adminPeerId !== sender.id) {
+      this.send(sender, { type: "error", message: "Only the admin can transfer admin" });
+      return;
+    }
+    const target = this.participants.get(targetPeerId);
+    if (!target) return;
+
+    this.adminPeerId = targetPeerId;
+    this.broadcast({ type: "admin-changed", peerId: targetPeerId, name: target.name });
+    this.broadcastSystemChat(`${target.name} is now the room admin`);
+    this.broadcastState();
+  }
+
+  private async handleSetPassword(sender: Party.Connection, password: string | null) {
+    if (this.adminPeerId !== sender.id) {
+      this.send(sender, { type: "error", message: "Only the admin can set a password" });
+      return;
+    }
+
+    if (password === null || password === "") {
+      this.passwordHash = null;
+    } else {
+      this.passwordHash = await this.hashPassword(password);
+    }
+    this.broadcastSystemChat(this.passwordHash ? "Room is now locked" : "Room is now unlocked");
+    this.broadcastState();
+  }
+
+  private async handleAuth(sender: Party.Connection, password: string) {
+    const pending = this.pendingAuth.get(sender.id);
+    if (!pending) {
+      this.send(sender, { type: "error", message: "No pending auth" });
+      return;
+    }
+
+    if (!this.passwordHash) {
+      // Password was removed while they were entering it - let them in
+      this.pendingAuth.delete(sender.id);
+      this.participants.set(sender.id, pending);
+      if (this.adminPeerId === null) {
+        this.adminPeerId = sender.id;
+      }
+      this.broadcast({ type: "peer-joined", peerId: sender.id, name: pending.name }, sender.id);
+      this.broadcastState();
+      return;
+    }
+
+    const inputHash = await this.hashPassword(password);
+    if (!this.constantTimeEqual(inputHash, this.passwordHash)) {
+      this.send(sender, { type: "auth-failed" });
+      return;
+    }
+
+    // Auth passed - add to participants
+    this.pendingAuth.delete(sender.id);
+    this.participants.set(sender.id, pending);
+    this.broadcast({ type: "peer-joined", peerId: sender.id, name: pending.name }, sender.id);
+    this.broadcastState();
+  }
+
+  private async hashPassword(password: string): Promise<string> {
+    const data = new TextEncoder().encode(password);
+    const hash = await crypto.subtle.digest("SHA-256", data);
+    return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, "0")).join("");
+  }
+
+  private constantTimeEqual(a: string, b: string): boolean {
+    if (a.length !== b.length) return false;
+    let result = 0;
+    for (let i = 0; i < a.length; i++) {
+      result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+    }
+    return result === 0;
+  }
+
   // ── Helpers ─────────────────────────────────────────────────
 
   private promoteNextSinger() {
@@ -806,6 +951,8 @@ export default class KaraokeRoom implements Party.Server {
       watchLeaderId: this.watchLeaderId,
       watchState: this.watchState,
       watchTime: this.watchTime,
+      adminPeerId: this.adminPeerId,
+      isLocked: this.passwordHash !== null,
     };
   }
 
@@ -853,6 +1000,7 @@ export default class KaraokeRoom implements Party.Server {
       state: this.buildRoomState(),
     };
     this.broadcast(msg);
+    this.reportToRegistry();
   }
 
   private isBroadcasting = false;
@@ -890,5 +1038,63 @@ export default class KaraokeRoom implements Party.Server {
     } catch {
       // Connection is dead, will be cleaned up on onClose/onError
     }
+  }
+
+  // ── Registry reporting ──────────────────────────────────────
+
+  private reportToRegistry() {
+    const now = Date.now();
+    const elapsed = now - this.lastRegistryReport;
+    if (elapsed < 30_000) {
+      // Debounce: schedule a report after the remaining cooldown
+      if (!this.registryTimer) {
+        this.registryTimer = setTimeout(() => {
+          this.registryTimer = null;
+          this.doRegistryReport();
+        }, 30_000 - elapsed);
+      }
+      return;
+    }
+    this.doRegistryReport();
+  }
+
+  private doRegistryReport() {
+    this.lastRegistryReport = Date.now();
+    const singerEntry = this.currentSingerId
+      ? this.participants.get(this.currentSingerId)
+      : undefined;
+    const singerStatus = this.currentSingerId
+      ? this.participantStatus.get(this.currentSingerId)
+      : undefined;
+
+    const currentSong = this.roomMode === "watch"
+      ? this.watchCurrentTitle
+      : (singerStatus?.currentSong ?? null);
+
+    const body = JSON.stringify({
+      participantCount: this.participants.size,
+      mode: this.roomMode,
+      currentSinger: singerEntry?.name ?? null,
+      currentSong,
+      isLocked: this.passwordHash !== null,
+    });
+
+    const registry = this.room.parties.registry;
+    if (!registry) return;
+    const stub = registry.get("global");
+    void stub.fetch(`?room=${encodeURIComponent(this.room.id)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+    }).catch(() => {});
+  }
+
+  private deleteFromRegistry() {
+    const registry = this.room.parties.registry;
+    if (!registry) return;
+    const stub = registry.get("global");
+    void stub.fetch(`?room=${encodeURIComponent(this.room.id)}`, {
+      method: "DELETE",
+    }).catch(() => {});
   }
 }

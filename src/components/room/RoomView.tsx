@@ -21,6 +21,9 @@ import { playReactionSound } from "./ReactionBar";
 import { WatchPlayer } from "./WatchPlayer";
 import { WatchToolbar } from "./WatchToolbar";
 import { VideoQueue } from "./VideoQueue";
+import { AuthModal } from "./AuthModal";
+import { AdminModal } from "./AdminModal";
+import { Shield } from "lucide-react";
 
 interface RoomViewProps {
   roomCode: string;
@@ -44,6 +47,8 @@ export function RoomView({ roomCode, playerName, onRename, onNameRejected }: Roo
   const [talkingNC, setTalkingNC] = useState(true);   // ON by default for talking
   const [singingNC, setSingingNC] = useState(false);   // OFF by default for singing
   const [singerMutedAll, setSingerMutedAll] = useState(false);
+  const [adminModalOpen, setAdminModalOpen] = useState(false);
+  const authAutoSubmittedRef = useRef(false);
 
   const {
     roomState,
@@ -77,9 +82,16 @@ export function RoomView({ roomCode, playerName, onRename, onNameRejected }: Roo
     sendWatchAdvance,
     watchSync,
     watchSpeed,
+    kicked,
+    authRequired,
+    authFailed,
+    sendKick,
+    sendTransferAdmin,
+    sendSetPassword,
+    sendAuth,
   } = useRoomState({ roomCode, playerName });
 
-
+  const isAdmin = myPeerId !== null && roomState.adminPeerId === myPeerId;
 
   const {
     inputDevices,
@@ -340,6 +352,62 @@ export function RoomView({ roomCode, playerName, onRename, onNameRejected }: Roo
     }
   }, [liveKitError, isPartyConnected, sendChat]);
 
+  // Auto-submit password from sessionStorage (room creator flow)
+  useEffect(() => {
+    if (!authRequired || authAutoSubmittedRef.current) return;
+    const stored = sessionStorage.getItem(`room-password-${roomCode}`);
+    if (stored) {
+      authAutoSubmittedRef.current = true;
+      sendAuth(stored);
+      sessionStorage.removeItem(`room-password-${roomCode}`);
+    }
+  }, [authRequired, roomCode, sendAuth]);
+
+  // Set password after joining as room creator
+  useEffect(() => {
+    if (!isAdmin || authAutoSubmittedRef.current) return;
+    const stored = sessionStorage.getItem(`room-password-${roomCode}`);
+    if (stored) {
+      sendSetPassword(stored);
+      sessionStorage.removeItem(`room-password-${roomCode}`);
+    }
+  }, [isAdmin, roomCode, sendSetPassword]);
+
+  // Kicked state - show banner and stop
+  if (kicked) {
+    return (
+      <main className="flex min-h-dvh flex-col items-center justify-center px-4">
+        <div
+          className="w-full max-w-sm rounded-xl border p-6 text-center"
+          style={{ background: "var(--color-dark-surface)", borderColor: "var(--color-dark-border)" }}
+        >
+          <p className="mb-2 text-sm font-bold" style={{ fontFamily: "var(--font-display)", color: "var(--color-danger)" }}>
+            You were kicked by {kicked}
+          </p>
+          <p className="mb-4 text-xs" style={{ color: "var(--color-text-muted)" }}>
+            You can no longer participate in this room.
+          </p>
+          <button
+            onClick={() => router.push("/")}
+            className="cursor-pointer rounded-lg px-6 py-2.5 text-xs font-bold transition-all hover:brightness-110"
+            style={{ fontFamily: "var(--font-display)", background: "var(--color-primary)", color: "#fff" }}
+          >
+            Back to Home
+          </button>
+        </div>
+      </main>
+    );
+  }
+
+  // Auth required - show password modal
+  if (authRequired) {
+    return (
+      <main className="flex min-h-dvh flex-col items-center justify-center px-4">
+        <AuthModal onSubmit={sendAuth} authFailed={authFailed} />
+      </main>
+    );
+  }
+
   return (
     <main data-mode={roomState.roomMode} className="relative flex h-dvh flex-col overflow-hidden">
       {/* Audio unlock prompt — dismisses on first click to satisfy autoplay policy */}
@@ -426,6 +494,18 @@ export function RoomView({ roomCode, playerName, onRename, onNameRejected }: Roo
 
           {/* Name */}
           <EditableName name={playerName} onRename={onRename} />
+
+          {/* Admin settings */}
+          {isAdmin && (
+            <button
+              onClick={() => setAdminModalOpen(true)}
+              className="cursor-pointer rounded-lg border p-2 transition-all hover:border-[var(--color-primary)] hover:scale-105"
+              style={{ borderColor: "var(--color-dark-border)", color: "var(--color-accent)" }}
+              title="Room admin settings"
+            >
+              <Shield size={13} />
+            </button>
+          )}
 
           {/* Settings */}
           <button
@@ -656,6 +736,8 @@ export function RoomView({ roomCode, playerName, onRename, onNameRejected }: Roo
             activeSpeakers={activeSpeakers}
             personVolumes={personVolumes}
             onPersonVolumeChange={handlePersonVolumeChange}
+            onKick={isAdmin ? sendKick : undefined}
+            onTransferAdmin={isAdmin ? sendTransferAdmin : undefined}
           />
 
           {roomState.roomMode !== "watch" ? (
@@ -758,6 +840,14 @@ export function RoomView({ roomCode, playerName, onRename, onNameRejected }: Roo
           onClose={clearRecording}
         />
       )}
+
+      {/* Admin settings modal */}
+      <AdminModal
+        open={adminModalOpen}
+        onClose={() => setAdminModalOpen(false)}
+        isLocked={roomState.isLocked}
+        onSetPassword={sendSetPassword}
+      />
     </main>
   );
 }
